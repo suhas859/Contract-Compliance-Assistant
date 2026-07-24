@@ -17,3 +17,42 @@ This project is currently in the initial development phase.
 - Policy-based question answering
 - Explainable AI responses with supporting evidence
 - ServiceNow incident lookup for similar compliance issues
+
+---
+
+## 1. Project Setup
+
+Clone the repository:
+
+```bash
+git clone https://github.com/suhas859/Contract-Compliance-Assistant
+cd contract-compliance-assistant
+```
+
+create virtual env :
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+Install Ollama
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+Pull Required Models
+
+
+```bash
+ollama pull llama3
+```
+
+
