@@ -13,6 +13,10 @@ pypdf
 pdfplumber
 python-docx
 
+
+#Embedding 
+sentence-transformers
+
 # Utilities
 requests
 python-dotenv
