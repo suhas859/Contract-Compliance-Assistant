@@ -1,0 +1,162 @@
+[
+  {
+    "incident_id": "INC0045210",
+    "short_description": "Invoice overpayment due to missing contract amendment",
+    "category": "Finance - Procurement",
+    "priority": "3 - Moderate",
+    "state": "Closed",
+    "opened_date": "2025-09-12",
+    "closed_date": "2025-09-30",
+    "related_supplier": "BrightPath Consulting",
+    "related_contract_id": "CTR-2025-0142",
+    "description": "Finance processed an invoice for $12,400 against a contract capped at $10,000. The overage was not accompanied by an approved amendment. Root cause: manual invoice approval bypassed automated contract-value check.",
+    "resolution": "Overpayment recovered via credit on next invoice. Amendment process now requires Procurement sign-off before Finance can release payment above contract cap.",
+    "tags": [
+      "overpayment",
+      "amendment",
+      "invoice-validation"
+    ]
+  },
+  {
+    "incident_id": "INC0045567",
+    "short_description": "Contract approval delayed - mandatory legal review omitted",
+    "category": "Legal - Contract Review",
+    "priority": "2 - High",
+    "state": "Closed",
+    "opened_date": "2025-10-03",
+    "closed_date": "2025-10-21",
+    "related_supplier": "Meridian Data Systems",
+    "related_contract_id": "CTR-2025-0201",
+    "description": "A $310,000 contract was routed for CFO approval without the mandatory legal review required for contracts exceeding $250,000. Discovered during post-signature audit.",
+    "resolution": "Contract sent for retroactive legal review. No material issues found, but approval workflow updated to hard-block CFO sign-off until legal review checkbox is completed in the system.",
+    "tags": [
+      "legal-review",
+      "approval-threshold",
+      "process-gap"
+    ]
+  },
+  {
+    "incident_id": "INC0046012",
+    "short_description": "Contract missing mandatory data privacy clause discovered post-signature",
+    "category": "Information Security",
+    "priority": "2 - High",
+    "state": "Closed",
+    "opened_date": "2025-11-18",
+    "closed_date": "2025-12-05",
+    "related_supplier": "CloudServe Analytics",
+    "related_contract_id": "CTR-2025-0233",
+    "description": "Security audit found the executed contract with CloudServe Analytics, which processes customer data, did not include the mandatory data privacy clause required by POL-SEC-002.",
+    "resolution": "Amendment executed adding the required data privacy clause. Information Security now requires a compliance checklist sign-off before any data-processing contract is approved.",
+    "tags": [
+      "data-privacy",
+      "missing-clause",
+      "post-signature-audit"
+    ]
+  },
+  {
+    "incident_id": "INC0046340",
+    "short_description": "Supplier name mismatch between invoice and contract",
+    "category": "Finance - Procurement",
+    "priority": "3 - Moderate",
+    "state": "Closed",
+    "opened_date": "2025-12-14",
+    "closed_date": "2025-12-16",
+    "related_supplier": "Acme Logistics Inc.",
+    "related_contract_id": "CTR-2025-0088",
+    "description": "Invoice submitted under entity name 'Acme Logistics LLC' did not match the contracted entity 'Acme Logistics Inc.' Investigation found a related-entity billing error on the supplier's side.",
+    "resolution": "Supplier corrected invoice with proper legal entity name. Finance added supplier legal-name verification as a required pre-payment check.",
+    "tags": [
+      "supplier-mismatch",
+      "invoice-validation"
+    ]
+  },
+  {
+    "incident_id": "INC0046801",
+    "short_description": "Advance payment approved without required written authorization",
+    "category": "Finance - Procurement",
+    "priority": "3 - Moderate",
+    "state": "Closed",
+    "opened_date": "2026-01-09",
+    "closed_date": "2026-01-22",
+    "related_supplier": "Northwind Facilities Group",
+    "related_contract_id": "CTR-2026-0015",
+    "description": "A 25% advance payment was released to an existing supplier (12 prior transactions) without written VP of Procurement approval, violating POL-PROC-001 Section 3.",
+    "resolution": "Payment flagged, additional approval obtained retroactively. Advance payment requests now require system-enforced approval gate before release.",
+    "tags": [
+      "advance-payment",
+      "policy-violation",
+      "approval-gate"
+    ]
+  },
+  {
+    "incident_id": "INC0047102",
+    "short_description": "Vendor missed SOC 2 renewal deadline",
+    "category": "Vendor Risk",
+    "priority": "3 - Moderate",
+    "state": "Closed",
+    "opened_date": "2026-02-01",
+    "closed_date": "2026-02-14",
+    "related_supplier": "Vantage Point Consulting Group LLC",
+    "related_contract_id": "CTR-2026-0055",
+    "description": "SOC 2 Type II report expired before renewal was submitted.",
+    "resolution": "Updated report received; risk tier reassessment triggered per POL-VRM-005.",
+    "tags": [
+      "vendor-risk",
+      "soc2",
+      "tier1"
+    ]
+  },
+  {
+    "incident_id": "INC0047340",
+    "short_description": "NDA filed with $0 value flagged by automated invoice check",
+    "category": "Finance - Procurement",
+    "priority": "4 - Low",
+    "state": "Closed",
+    "opened_date": "2026-06-02",
+    "closed_date": "2026-06-02",
+    "related_supplier": "Pinegrove Design Studio",
+    "related_contract_id": "CTR-2026-0134",
+    "description": "False positive - zero-dollar invoice for recordkeeping.",
+    "resolution": "No action needed; exclusion rule added for $0 NDA filings.",
+    "tags": [
+      "false-positive",
+      "nda"
+    ]
+  },
+  {
+    "incident_id": "INC0047588",
+    "short_description": "Legal hold placed on Vantage Point MSA records during vendor dispute review",
+    "category": "Legal - Records Management",
+    "priority": "2 - High",
+    "state": "Closed",
+    "opened_date": "2026-04-10",
+    "closed_date": "2026-05-02",
+    "related_supplier": "Vantage Point Consulting Group LLC",
+    "related_contract_id": "CTR-2026-0055",
+    "description": "A legal hold was placed on all contract and invoice records related to CTR-2026-0055 pending review of an unrelated vendor dispute. Automated retention disposal was correctly suspended for the duration of the hold per POL-DRM-006 Section 4.",
+    "resolution": "Hold lifted after dispute review concluded with no findings against this contract. Standard retention schedule resumed.",
+    "tags": [
+      "legal-hold",
+      "records-retention",
+      "tier1"
+    ]
+  },
+  {
+    "incident_id": "INC0047790",
+    "short_description": "Larkspur Analytics SLA credit dispute",
+    "category": "Vendor Risk",
+    "priority": "3 - Moderate",
+    "state": "Closed",
+    "opened_date": "2026-05-20",
+    "closed_date": "2026-06-03",
+    "related_supplier": "Larkspur Analytics Inc.",
+    "related_contract_id": "CTR-2026-0071",
+    "description": "Platform uptime fell to 98.7% in April 2026, below the 99.5% SLA commitment in Section 5 of the license agreement. Vendor initially disputed the calculation methodology.",
+    "resolution": "Vendor and Company agreed on shared monitoring methodology; 6.5% service credit applied to next invoice per contract formula.",
+    "tags": [
+      "sla-breach",
+      "service-credit",
+      "tier2"
+    ]
+  }
+]

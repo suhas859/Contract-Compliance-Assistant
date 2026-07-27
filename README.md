@@ -26,7 +26,7 @@ Clone the repository:
 
 ```bash
 git clone https://github.com/suhas859/Contract-Compliance-Assistant
-cd contract-compliance-assistant
+cd Contract-Compliance-Assistant
 ```
 
 create virtual env :
