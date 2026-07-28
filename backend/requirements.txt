@@ -1,0 +1,22 @@
+# Web framework
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+
+# Vector store
+chromadb
+
+# Document parsing (PDF / DOCX ingestion)
+pypdf
+pdfplumber
+python-docx
+
+
+#Embedding 
+sentence-transformers
+
+# Utilities
+requests
+python-dotenv
