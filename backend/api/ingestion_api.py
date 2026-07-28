@@ -4,7 +4,6 @@ import os
 from backend.ingestion.parsers.pdf_parser import parse_pdf
 from backend.ingestion.parsers.docx_parser import parse_docx
 from backend.ingestion.parsers.md_parser import parse_md
-from backend.ingestion.parsers.json_parser import parse_json
 
 from backend.ingestion.chunker import chunk_text
 from backend.ingestion.embedder import embed_chunks
@@ -30,8 +29,6 @@ async def ingest_document(file: UploadFile = File(...)):
         text = parse_docx(file_path)
     elif ext.endswith(".md"):
         text = parse_md(file_path)
-    elif ext.endswith(".json"):
-        text = parse_json(file_path)
     else:
         raise HTTPException(
             status_code=400,
