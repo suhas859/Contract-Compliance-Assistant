@@ -35,10 +35,23 @@ async def ingest_document(file: UploadFile = File(...)):
 
     # Chunk
     chunks = chunk_text(text)
+    
+
+    if len(chunks) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No text chunks were generated."
+        )
 
     # Embed
     embeddings = embed_chunks(chunks)
 
+    if len(embeddings) != len(chunks):
+        raise HTTPException(
+            status_code=500,
+            detail="Embedding count does not match chunk count."
+        )
+    
     # Store
     vector_store.add(
         embeddings=embeddings,
@@ -50,6 +63,8 @@ async def ingest_document(file: UploadFile = File(...)):
 
     return {
         "status": "success",
+        "file": safe_name,
         "chunks": len(chunks),
-        "file": safe_name
+        "embeddings": len(embeddings),
+        "message": "Document successfully ingested into ChromaDB."
     }

@@ -18,6 +18,7 @@ python-docx
 sentence-transformers
 langchain-text-splitters
 
+
 # Utilities
 requests
 python-dotenv
