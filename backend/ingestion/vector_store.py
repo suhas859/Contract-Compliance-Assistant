@@ -1,14 +1,10 @@
 import chromadb
-from chromadb.config import Settings
+
 
 class ChromaStore:
     def __init__(self, collection_name="documents"):
-        self.client = chromadb.Client(
-            Settings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory="chroma_db"
-            )
-        )
+        # Creates a persistent database in ./chroma_db
+        self.client = chromadb.PersistentClient(path="chroma_db")
 
         self.collection = self.client.get_or_create_collection(
             name=collection_name,
@@ -26,4 +22,6 @@ class ChromaStore:
         )
 
     def persist(self):
-        self.client.persist()
+        # ChromaDB 1.x persists automatically.
+        # Kept for compatibility with the rest of your code.
+        pass

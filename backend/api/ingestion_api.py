@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
 import os
 
 from backend.ingestion.parsers.pdf_parser import parse_pdf
@@ -33,7 +33,10 @@ async def ingest_document(file: UploadFile = File(...)):
     elif ext.endswith(".json"):
         text = parse_json(file_path)
     else:
-        return {"error": "Unsupported file format"}
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file format"
+    )
 
     # Chunk
     chunks = chunk_text(text)
@@ -42,9 +45,13 @@ async def ingest_document(file: UploadFile = File(...)):
     embeddings = embed_chunks(chunks)
 
     # Store
-    metadata = [{"chunk": c, "source": file.filename} for c in chunks]
-    vector_store.add(embeddings, metadata)
-    vector_store.save()
+    vector_store.add(
+        embeddings=embeddings,
+        chunks=chunks,
+        source=file.filename
+    )
+
+    vector_store.persist()
 
     return {
         "status": "success",

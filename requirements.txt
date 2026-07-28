@@ -12,6 +12,7 @@ chromadb
 pypdf
 pdfplumber
 python-docx
+python-multipart
 
 
 #Embedding 
