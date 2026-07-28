@@ -16,6 +16,7 @@ python-docx
 
 #Embedding 
 sentence-transformers
+langchain-text-splitters
 
 # Utilities
 requests

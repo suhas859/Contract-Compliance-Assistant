@@ -14,8 +14,8 @@ vector_store = ChromaStore()
 @router.post("/ingest")
 async def ingest_document(file: UploadFile = File(...)):
     safe_name = os.path.basename(file.filename)
-    file_path = f"uploads/{safe_name}"
-    os.makedirs("uploads", exist_ok=True)
+    file_path = f"data/uploads/{safe_name}"
+    os.makedirs("data/uploads", exist_ok=True)
 
     with open(file_path, "wb") as f:
         f.write(await file.read())
