@@ -8,7 +8,9 @@ from backend.ingestion.vector_store import ChromaStore
 class RetrievedChunk:
     text: str
     source: str
-    score: float  # similarity score, higher = more relevant 
+    score: float
+    doc_type: str | None
+    doc_id: str | None
 
 
 class Retriever:
@@ -34,10 +36,11 @@ class Retriever:
         for doc, meta, distance in zip(documents, metadatas, distances):
             similarity = 1 - distance  # cosine distance -> similarity
             if similarity >= self.score_threshold:
-                chunks.append(RetrievedChunk(
-                    text=doc,
+                chunks.append(RetrievedChunk(text=doc,
                     source=meta.get("source", "unknown"),
                     score=similarity,
+                    doc_type=meta.get("doc_type"),
+                    doc_id=meta.get("doc_id"),
                 ))
 
         return chunks

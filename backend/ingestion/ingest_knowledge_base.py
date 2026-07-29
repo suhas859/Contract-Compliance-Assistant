@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -10,6 +11,38 @@ from backend.ingestion.vector_store import ChromaStore
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx"}
 
+DOC_ID_PATTERN = re.compile(r"(?:Document ID|Contract ID):\s*([A-Za-z0-9\-]+)")
+
+
+def get_doc_type(path: Path) -> str:
+    """
+    Derives the document type from which folder it lives in under
+    knowledge_base/. Used to scope retrieval later (e.g. exclude
+    contracts from a pure policy-question search).
+    """
+    parts = path.parts
+    if "policies" in parts:
+        return "policy"
+    if "sops" in parts:
+        return "sop"
+    if "knowledge_articles" in parts:
+        return "knowledge_article"
+    if "approved_contracts" in parts:
+        return "contract"
+    return "unknown"
+
+
+def extract_doc_id(text: str) -> str | None:
+    """
+    Pulls the document's own ID out of its content, e.g.
+    "Document ID: POL-PROC-001" or "Contract ID: CTR-2026-0088".
+    Returns None if no such line is found (e.g. some knowledge
+    articles use "Article ID:" instead -- not currently matched;
+    extend the pattern above if you want those indexed too).
+    """
+    match = DOC_ID_PATTERN.search(text)
+    return match.group(1) if match else None
+
 
 def ingest_file(path: Path, store: ChromaStore) -> int:
     ext = path.suffix.lower()
@@ -20,18 +53,31 @@ def ingest_file(path: Path, store: ChromaStore) -> int:
     else:
         print(f"[ERROR] Unsupported file type: {ext} (only .pdf and .docx allowed)")
         return 0
+
     chunks = chunk_text(text)
     if not chunks:
         print(f"[WARNING] no chunks extracted from {path}")
         return 0
 
+    doc_type = get_doc_type(path)
+    doc_id = extract_doc_id(text)
+    if doc_id is None:
+        print(f"[WARNING] no Document ID/Contract ID found in {path.name} -- "
+              f"exact lookup by ID won't work for this file")
+
     embeddings = embed_chunks(chunks)
-    store.add(embeddings=embeddings, chunks=chunks, source=path.name)
+    store.add(
+        embeddings=embeddings,
+        chunks=chunks,
+        source=path.name,
+        doc_type=doc_type,
+        doc_id=doc_id,
+    )
     return len(chunks)
 
 
 def find_source_files(source_dir: Path) -> Iterable[Path]:
-    yield from source_dir.rglob("*")   # always recursive
+    yield from source_dir.rglob("*")
 
 
 def ingest_directory(source_dir: Path) -> int:
@@ -53,16 +99,17 @@ def ingest_directory(source_dir: Path) -> int:
         except Exception as e:
             print(f"[ERROR] Failed to ingest {path}: {e}")
             continue
+
         if chunk_count > 0:
             total_chunks += chunk_count
-            print(f"  -> {chunk_count} chunks")
+            print(f"  -> {chunk_count} chunks (doc_type={get_doc_type(path)})")
 
     store.persist()
     return total_chunks
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print("Usage: python ingest_knowledge_base.py <folder_path>")
         sys.exit(1)
 
