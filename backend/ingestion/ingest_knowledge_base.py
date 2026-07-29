@@ -62,7 +62,7 @@ def ingest_directory(source_dir: Path) -> int:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
+    if len(sys.argv) != 2:
         print("Usage: python ingest_knowledge_base.py <folder_path>")
         sys.exit(1)
 

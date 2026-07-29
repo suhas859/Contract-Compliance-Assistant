@@ -21,6 +21,27 @@ class ChromaStore:
             metadatas=[{"source": source} for _ in chunks]
         )
 
+
+        def query(self, query_embedding, n_results=3):
+            """
+            Search the vector database for the most similar chunks.
+
+            Args:
+                query_embedding (list[float]): Embedding of the user's query.
+                n_results (int): Number of results to return.
+
+            Returns:
+                dict: ChromaDB query results.
+            """
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results,
+                include=["documents", "metadatas", "distances"]
+            )
+            return results
+
+
+    
     def persist(self):
         # ChromaDB 1.x persists automatically.
         # Kept for compatibility with the rest of your code.
