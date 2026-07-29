@@ -12,14 +12,14 @@ SUPPORTED_EXTENSIONS = {".pdf", ".docx"}
 
 
 def ingest_file(path: Path, store: ChromaStore) -> int:
-    if path.suffix.lower() == ".pdf":
+    ext = path.suffix.lower()
+    if ext == ".pdf":
         text = parse_pdf(str(path))
-    elif path.suffix.lower() == ".docx":
+    elif ext == ".docx":
         text = parse_docx(str(path))
     else:
         print(f"[ERROR] Unsupported file type: {ext} (only .pdf and .docx allowed)")
         return 0
-
     chunks = chunk_text(text)
     if not chunks:
         print(f"[WARNING] no chunks extracted from {path}")
@@ -48,7 +48,11 @@ def ingest_directory(source_dir: Path) -> int:
             continue
 
         print(f"Ingesting {path}")
-        chunk_count = ingest_file(path, store)
+        try:
+            chunk_count = ingest_file(path, store)
+        except Exception as e:
+            print(f"[ERROR] Failed to ingest {path}: {e}")
+            continue
         if chunk_count > 0:
             total_chunks += chunk_count
             print(f"  -> {chunk_count} chunks")
