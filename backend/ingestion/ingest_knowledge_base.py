@@ -11,7 +11,7 @@ from backend.ingestion.vector_store import ChromaStore
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx"}
 
-DOC_ID_PATTERN = re.compile(r"(?:Document ID|Contract ID):\s*([A-Za-z0-9\-]+)")
+DOC_ID_PATTERN = re.compile(r"(?:Document ID|Contract ID|Article ID):\s*([A-Za-z0-9\-]+)")
 
 
 def get_doc_type(path: Path) -> str:
@@ -34,11 +34,9 @@ def get_doc_type(path: Path) -> str:
 
 def extract_doc_id(text: str) -> str | None:
     """
-    Pulls the document's own ID out of its content, e.g.
-    "Document ID: POL-PROC-001" or "Contract ID: CTR-2026-0088".
-    Returns None if no such line is found (e.g. some knowledge
-    articles use "Article ID:" instead -- not currently matched;
-    extend the pattern above if you want those indexed too).
+    Pulls the document's own ID out of its content -- supports
+    "Document ID:" (policies/SOPs), "Contract ID:" (contracts), and
+    "Article ID:" (knowledge articles).
     """
     match = DOC_ID_PATTERN.search(text)
     return match.group(1) if match else None
@@ -62,7 +60,7 @@ def ingest_file(path: Path, store: ChromaStore) -> int:
     doc_type = get_doc_type(path)
     doc_id = extract_doc_id(text)
     if doc_id is None:
-        print(f"[WARNING] no Document ID/Contract ID found in {path.name} -- "
+        print(f"[WARNING] no Document/Contract/Article ID found in {path.name} -- "
               f"exact lookup by ID won't work for this file")
 
     embeddings = embed_chunks(chunks)

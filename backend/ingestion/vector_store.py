@@ -3,46 +3,39 @@ import chromadb
 
 class ChromaStore:
     def __init__(self, collection_name="documents"):
-        # Creates a persistent database in ./chroma_db
         self.client = chromadb.PersistentClient(path="chroma_db")
-
         self.collection = self.client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
 
-    def add(self, embeddings, chunks, source):
+    def add(self, embeddings, chunks, source, doc_type=None, doc_id=None):
         ids = [f"{source}_{i}" for i in range(len(chunks))]
-
+        metadatas = [
+            {
+                "source": source,
+                "doc_type": doc_type or "unknown",
+                "doc_id": doc_id or "",
+            }
+            for _ in chunks
+        ]
         self.collection.add(
             ids=ids,
             embeddings=embeddings,
             documents=chunks,
-            metadatas=[{"source": source} for _ in chunks]
+            metadatas=metadatas,
         )
 
-
-    def query(self, query_embedding, n_results=3):
-        """
-        Search the vector database for the most similar chunks.
-
-        Args:
-            query_embedding (list[float]): Embedding of the user's query.
-            n_results (int): Number of results to return.
-
-        Returns:
-            dict: ChromaDB query results.
-        """
-        results = self.collection.query(
+    def query(self, query_embedding, n_results=3, where=None):
+        return self.collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results,
-            include=["documents", "metadatas", "distances"]
+            where=where,
+            include=["documents", "metadatas", "distances"],
         )
-        return results
 
+    def get_by_metadata(self, where: dict) -> dict:
+        return self.collection.get(where=where)
 
-    
     def persist(self):
-        # ChromaDB 1.x persists automatically.
-        # Kept for compatibility with the rest of your code.
         pass
