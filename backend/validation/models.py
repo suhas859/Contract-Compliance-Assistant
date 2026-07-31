@@ -13,9 +13,8 @@ class Finding:
     """
     A single compliance check result. Every validation check (contract
     vs. policies, invoice vs. contract, invoice vs. policies) produces
-    a list of these, regardless of which check generated them -- this
-    is the common shape the rest of the pipeline (aggregation, API
-    response, UI rendering) depends on.
+    a list of these, regardless of which check generated them this
+    is the common shape the rest of the pipeline depends on.
     """
     status: FindingStatus
     description: str          # human-readable explanation, e.g.
