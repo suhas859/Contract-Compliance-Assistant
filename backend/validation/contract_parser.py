@@ -10,7 +10,11 @@ class ContractParser:
     """
 
     CONTRACT_ID_PATTERN = re.compile(r"Contract\s*ID\s*:\s*(CTR-[A-Za-z0-9\-]+)")
-    SUPPLIER_PATTERN = re.compile(r"Supplier\s*:\s*([^\n]+?)(?:\s+Tax\s*ID|\s{2,}|\n|$)")
+    SUPPLIER_PATTERN = re.compile(
+        r"Supplier\s*:\s*(.+?)"
+        r"(?=\s+(?:Tax\s*ID|Contract\s*Owner|Total\s+Contract\s+Value|"
+        r"Contract\s+Validity\s+Period|Supplier\s+Relationship|Vendor\s+Risk\s+Tier)\s*:|\n|$)"
+    )
     TAX_ID_PATTERN = re.compile(r"Tax\s*ID\s*:\s*([0-9\-]+)")
     CONTRACT_VALUE_PATTERN = re.compile(r"Total\s+Contract\s+Value\s*:\s*\$?([\d,]+(?:\.\d+)?)")
     VALIDITY_PERIOD_PATTERN = re.compile(
