@@ -20,6 +20,11 @@ class ContractParser:
     VALIDITY_PERIOD_PATTERN = re.compile(
         r"Contract\s+Validity\s+Period\s*:\s*(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})"
     )
+    # Contract's own payment terms override the policy default (e.g.
+    # "due Net 30 from receipt", "Net 30 from invoice date"). Not every
+    # contract has one -- some are invoiced upfront -- so this is
+    # allowed to come back None.
+    PAYMENT_TERM_DAYS_PATTERN = re.compile(r"[Nn]et[\s-]*(\d+)")
     # Matches "Approved by:" (executed contracts) or "Submitted by:"
     # (drafts pending review) -- stops at the next "Date:" label or
     # newline, since PDF/DOCX-extracted text doesn't reliably preserve
@@ -45,6 +50,7 @@ class ContractParser:
             "validity_start": self._search_group(self.VALIDITY_PERIOD_PATTERN, text, group=1),
             "validity_end": self._search_group(self.VALIDITY_PERIOD_PATTERN, text, group=2),
             "submitter_role": self._search(self.SUBMITTER_PATTERN, text),
+            "payment_term_days": self._to_int(self._search(self.PAYMENT_TERM_DAYS_PATTERN, text)),
         }
 
     @staticmethod
@@ -82,3 +88,9 @@ class ContractParser:
         if value is None:
             return None
         return float(value.replace(",", ""))
+
+    @staticmethod
+    def _to_int(value: str | None) -> int | None:
+        if value is None:
+            return None
+        return int(value)

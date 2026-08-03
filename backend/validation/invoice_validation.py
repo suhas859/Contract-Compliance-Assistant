@@ -1,24 +1,26 @@
-from datetime import datetime
-
 from backend.retrieval.retriever import Retriever
+from backend.validation.checks.contract_period_check import validate_contract_dates
+from backend.validation.checks.payment_amount_check import validate_amount
+from backend.validation.checks.payment_terms_check import validate_payment_terms
+from backend.validation.checks.supplier_check import validate_supplier
 from backend.validation.contract_parser import ContractParser
 from backend.validation.invoice_parser import InvoiceParser
-from backend.validation.models import (
-    ComplianceReport,
-    Finding,
-    FindingStatus,
-)
+from backend.validation.models import ComplianceReport, Finding, FindingStatus
+from backend.validation.policy_rules import PolicyRules
 
 
 class InvoiceValidationEngine:
     """
-    Validates an invoice against its governing contract.
+    Validates an invoice against its governing contract. Parses the
+    invoice, retrieves the governing contract, then delegates each rule
+    to its own module under checks/ -- this class only orchestrates.
     """
 
     def __init__(self):
         self.invoice_parser = InvoiceParser()
         self.contract_parser = ContractParser()
         self.retriever = Retriever()
+        self.policy_rules = PolicyRules(self.retriever)
 
     ##############################################################
 
@@ -69,175 +71,9 @@ class InvoiceValidationEngine:
         # -----------------------------
         # Run validations
         # -----------------------------
-        report.findings.extend(
-            self.validate_supplier(invoice, contract)
-        )
-
-        report.findings.extend(
-            self.validate_contract_dates(invoice, contract)
-        )
-
-        report.findings.extend(
-            self.validate_amount(invoice, contract)
-        )
+        report.findings.extend(validate_supplier(invoice, contract))
+        report.findings.extend(validate_contract_dates(invoice, contract))
+        report.findings.extend(validate_amount(invoice, contract, self.policy_rules))
+        report.findings.extend(validate_payment_terms(invoice, contract, self.policy_rules))
 
         return report
-
-    ##############################################################
-
-    def validate_supplier(self, invoice, contract):
-
-        findings = []
-
-        invoice_vendor = invoice.get("vendor")
-        contract_supplier = contract.get("supplier")
-
-        if not invoice_vendor or not contract_supplier:
-            findings.append(
-                Finding(
-                    status=FindingStatus.WARNING,
-                    description="Supplier information could not be verified.",
-                    citation=contract.get("contract_id", "Contract"),
-                    category="supplier_match",
-                )
-            )
-            return findings
-
-        if invoice_vendor.lower().strip() == contract_supplier.lower().strip():
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.PASS,
-                    description="Supplier matches the governing contract.",
-                    citation=contract["contract_id"],
-                    category="supplier_match",
-                )
-            )
-
-        else:
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.FAIL,
-                    description=(
-                        f"Invoice supplier '{invoice_vendor}' does not "
-                        f"match contract supplier '{contract_supplier}'."
-                    ),
-                    citation=contract["contract_id"],
-                    category="supplier_match",
-                )
-            )
-
-        return findings
-
-    ##############################################################
-
-    def validate_contract_dates(self, invoice, contract):
-
-        findings = []
-
-        try:
-
-            invoice_date = datetime.strptime(
-                invoice["invoice_date"],
-                "%Y-%m-%d",
-            )
-
-            start = datetime.strptime(
-                contract["validity_start"],
-                "%Y-%m-%d",
-            )
-
-            end = datetime.strptime(
-                contract["validity_end"],
-                "%Y-%m-%d",
-            )
-
-        except Exception:
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.WARNING,
-                    description="Unable to verify contract validity dates.",
-                    citation=contract.get("contract_id", "Contract"),
-                    category="contract_period",
-                )
-            )
-
-            return findings
-
-        if start <= invoice_date <= end:
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.PASS,
-                    description="Invoice date falls within contract validity.",
-                    citation=contract["contract_id"],
-                    category="contract_period",
-                )
-            )
-
-        else:
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.FAIL,
-                    description="Invoice date is outside contract validity.",
-                    citation=contract["contract_id"],
-                    category="contract_period",
-                )
-            )
-
-        return findings
-
-    ##############################################################
-
-    def validate_amount(self, invoice, contract):
-
-        findings = []
-
-        invoice_amount = invoice.get("amount")
-        contract_value = contract.get("contract_value")
-
-        if invoice_amount is None or contract_value is None:
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.WARNING,
-                    description="Unable to verify invoice amount.",
-                    citation=contract.get("contract_id", "Contract"),
-                    category="payment_amount",
-                )
-            )
-
-            return findings
-
-        #
-        # NOTE:
-        # Replace this rule later with:
-        # Monthly Fee / Payment Terms validation
-        #
-
-        if invoice_amount <= contract_value:
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.PASS,
-                    description="Invoice amount is within contract value.",
-                    citation=contract["contract_id"],
-                    category="payment_amount",
-                )
-            )
-
-        else:
-
-            findings.append(
-                Finding(
-                    status=FindingStatus.FAIL,
-                    description="Invoice amount exceeds contract value.",
-                    citation=contract["contract_id"],
-                    category="payment_amount",
-                )
-            )
-
-        return findings
