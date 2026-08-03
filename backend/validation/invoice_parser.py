@@ -1,5 +1,8 @@
 import re
-import pdfplumber
+from pathlib import Path
+
+from backend.ingestion.parsers.docx_parser import parse_docx
+from backend.ingestion.parsers.pdf_parser import parse_pdf
 
 
 class InvoiceParser:
@@ -46,13 +49,19 @@ class InvoiceParser:
     #######################################################
 
     def extract_text(self, file_path: str) -> str:
-        text = ""
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
-        return text
+        path = Path(file_path)
+        suffix = path.suffix.lower()
+
+        if suffix == ".pdf":
+            return parse_pdf(str(path))
+
+        if suffix == ".docx":
+            return parse_docx(str(path))
+
+        if suffix in {".txt", ".md"}:
+            return path.read_text(encoding="utf-8")
+
+        raise ValueError(f"Unsupported file type: {suffix or 'unknown'}")
 
     #######################################################
     # Cleaning
