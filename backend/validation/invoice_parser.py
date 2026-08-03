@@ -6,40 +6,31 @@ class InvoiceParser:
 
     INVOICE_ID_PATTERN = re.compile(r"Invoice\s*ID\s*:\s*(INV-[A-Za-z0-9\-]+)")
     CONTRACT_ID_PATTERN = re.compile(r"Contract\s*ID\s*:\s*(CTR-[A-Za-z0-9\-]+)")
-    # FIX: was r"Supplier\s*:\s*(.*?)\s+Tax\s*ID" -- required "Tax ID" to
-    # appear immediately after the supplier name to know where to stop
-    # capturing. Invoices with no Tax ID field (e.g. minimal/placeholder
-    # invoices) had no valid stopping point, so the match failed
-    # entirely and returned None, even though the supplier name was
-    # present in the text. Now stops at "Tax ID" OR a double-space OR
-    # a newline OR end of string -- whichever comes first.
+    # Stops at a known label on the same line, OR a real newline, OR
+    # end of string. Needs line-preserving text (not flattened) --
+    # flattening destroys the newline signal this depends on.
     VENDOR_PATTERN = re.compile(
-       r"Supplier\s*:\s*(.+?)(?=\s*(?:[-]{3,}|[A-Z][A-Za-z ]+:\s|$))"
+        r"Supplier\s*:\s*(.+?)"
+        r"(?=\s+(?:Tax\s*ID|Invoice\s*Date|Due\s*Date|Amount\s*Due|Contract\s*ID|"
+        r"Total\s+Invoiced|Billing\s+Details|Note)\s*:|\n|$)"
     )
     TAX_ID_PATTERN = re.compile(r"Tax\s*ID\s*:\s*([0-9\-]+)")
     INVOICE_DATE_PATTERN = re.compile(r"Invoice\s*Date\s*:\s*(\d{4}-\d{2}-\d{2})")
     DUE_DATE_PATTERN = re.compile(r"Due\s*Date\s*:\s*(\d{4}-\d{2}-\d{2})")
-    TOTAL_AMOUNT_PATTERN = re.compile(r"Total\s+Invoiced\s+Amount\s*:\s*\$?([\d,]+\.\d{2})")
+    TOTAL_AMOUNT_PATTERN = re.compile(r"(?:Total\s+Invoiced\s+Amount|Amount\s+Due)\s*:\s*\$?([\d,]+\.\d{2})")
     BASE_FEE_PATTERN = re.compile(r"Base\s+Monthly\s+Service\s+Fee.*?\$([\d,]+\.\d{2})")
     ADDITIONAL_CHARGES_PATTERN = re.compile(r"Additional\s+Charges\s*:\s*\$([\d,]+\.\d{2})")
 
     def parse(self, file_path: str) -> dict:
-        """
-        Main entry point.
-        """
-        text = self.extract_text(file_path)
-        text = self.clean_text(text)
+        raw = self.extract_text(file_path)
+        lines_text = self.repair_line_breaks(raw)
+        flat_text = self.flatten(lines_text)
 
-        header = self.extract_header_fields(text)
-        dates = self.extract_dates(text)
-        billing = self.extract_billing_details(text)
+        header = self.extract_header_fields(lines_text)
+        dates = self.extract_dates(flat_text)
+        billing = self.extract_billing_details(flat_text)
 
-        return {
-            **header,
-            **dates,
-            **billing,
-            "raw_text": text
-        }
+        return {**header, **dates, **billing, "raw_text": flat_text}
 
     #######################################################
     # PDF Extraction
@@ -58,29 +49,23 @@ class InvoiceParser:
     # Cleaning
     #######################################################
 
-    def clean_text(self, text: str) -> str:
-        text = text.replace("\r\n", "\n")
-        text = text.replace("\r", "\n")
-
-        # Join Tax IDs split across lines
+    def repair_line_breaks(self, text: str) -> str:
+        """Fixes PDF line-wrap corruption WITHOUT removing real newlines."""
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         text = re.sub(r"(\d{2}-)\s*\n\s*(\d+)", r"\1\2", text)
-
-        # Join words broken with hyphen
         text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)
+        return text
 
-        # Replace newlines with spaces
-        text = text.replace("\n", " ")
+    def flatten(self, text: str) -> str:
+        text = text.replace("\n", " ").replace("\t", " ")
+        return re.sub(r"\s+", " ", text).strip()
 
-        # Remove tabs
-        text = text.replace("\t", " ")
-
-        # Collapse spaces
-        text = re.sub(r"\s+", " ", text)
-
-        return text.strip()
+    def clean_text(self, text: str) -> str:
+        """Kept for backward compatibility with any external caller."""
+        return self.flatten(self.repair_line_breaks(text))
 
     #######################################################
-    # Header Fields
+    # Header Fields (operate on line-preserving text)
     #######################################################
 
     def extract_header_fields(self, text: str):
@@ -92,7 +77,7 @@ class InvoiceParser:
         }
 
     #######################################################
-    # Dates
+    # Dates (operate on flattened text)
     #######################################################
 
     def extract_dates(self, text: str):
@@ -102,14 +87,13 @@ class InvoiceParser:
         }
 
     #######################################################
-    # Billing
+    # Billing (operate on flattened text -- values may span a PDF line wrap)
     #######################################################
 
     def extract_billing_details(self, text: str):
         total_amount = self.search(self.TOTAL_AMOUNT_PATTERN, text)
         base_fee = self.search(self.BASE_FEE_PATTERN, text)
         additional_charges = self.search(self.ADDITIONAL_CHARGES_PATTERN, text)
-
         return {
             "amount": self.to_float(total_amount),
             "base_fee": self.to_float(base_fee),
