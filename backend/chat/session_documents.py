@@ -16,15 +16,37 @@ def session_collection_name(session_id: str) -> str:
     return f"session_{session_id}"
 
 
+# Same ID-prefix convention used throughout the knowledge base
+# (CTR-..., POL-..., SOP-..., KA-...) -- reused here since a session
+# upload has no folder to infer type from the way ingest_knowledge_base.py
+# does for the permanent collection.
+DOC_TYPE_PREFIXES = {
+    "CTR-": "contract",
+    "POL-": "policy",
+    "SOP-": "sop",
+    "KA-": "knowledge_article",
+}
+
+
+def infer_doc_type(doc_id: str | None) -> str:
+    if doc_id:
+        for prefix, doc_type in DOC_TYPE_PREFIXES.items():
+            if doc_id.startswith(prefix):
+                return doc_type
+    return "policy"
+
+
 def ingest_session_file(
     session_id: str,
     file_path: str,
     original_filename: str,
-    doc_type: str = "policy",
-) -> int:
+    doc_type: str | None = None,
+) -> dict:
     """
     Parses, chunks, embeds, and stores an uploaded file into this
-    session's collection.
+    session's collection. doc_type is auto-detected from the document's
+    own ID (e.g. "Contract ID: CTR-...") unless explicitly overridden --
+    lets one upload path handle both policies and contracts.
     """
     suffix = Path(file_path).suffix.lower()
 
@@ -37,9 +59,10 @@ def ingest_session_file(
 
     chunks = chunk_text(text)
     if not chunks:
-        return 0
+        return {"chunk_count": 0, "doc_type": doc_type or "policy"}
 
     doc_id = extract_doc_id(text)
+    resolved_doc_type = doc_type or infer_doc_type(doc_id)
 
     embeddings = embed_chunks(chunks)
 
@@ -48,9 +71,9 @@ def ingest_session_file(
         embeddings=embeddings,
         chunks=chunks,
         source=original_filename,
-        doc_type=doc_type,
+        doc_type=resolved_doc_type,
         doc_id=doc_id,
     )
     store.persist()
 
-    return len(chunks)
+    return {"chunk_count": len(chunks), "doc_type": resolved_doc_type}

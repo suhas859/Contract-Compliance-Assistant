@@ -45,9 +45,10 @@ async def chat(
         with open(file_path, "wb") as f:
             f.write(await file.read())
 
-        chunk_count = ingest_session_file(session_id, file_path, safe_name)
+        ingest_result = ingest_session_file(session_id, file_path, safe_name)
         upload_notes.append(
-            f"Uploaded and indexed {safe_name} ({chunk_count} chunks)."
+            f"Uploaded and indexed {safe_name} as a {ingest_result['doc_type']} "
+            f"({ingest_result['chunk_count']} chunks)."
         )
 
     upload_note = "\n".join(upload_notes) or None
