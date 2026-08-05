@@ -1,11 +1,15 @@
 import os
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 
 
-load_dotenv()
+# Explicit path: bare load_dotenv() only searches upward from the current
+# working directory for a file named ".env" -- it won't find backend/.env
+# when the server is launched from the repo root (the normal case here).
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 class LLMProvider(ABC):
@@ -49,24 +53,24 @@ class OpenAILLM(LLMProvider):
             )
         return response.json()["choices"][0]["message"]["content"].strip()
 
-# class OllamaLLM(LLMProvider):
-#     """
-#     Talks to a local Ollama server over its HTTP API.
-#     """
+class OllamaLLM(LLMProvider):
+    """
+    Talks to a local Ollama server over its HTTP API.
+    """
 
-#     def __init__(self, model: str | None = None, base_url: str | None = None):
-#         self.model = model or os.environ.get("OLLAMA_MODEL", "llama3")
-#         self.base_url = base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    def __init__(self, model: str | None = None, base_url: str | None = None):
+        self.model = model or os.environ.get("OLLAMA_MODEL", "llama3")
+        self.base_url = base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
-#     def generate(self, prompt: str) -> str:
-#         response = requests.post(
-#             f"{self.base_url}/api/generate",
-#             json={
-#                 "model": self.model,
-#                 "prompt": prompt,
-#                 "stream": False,
-#             },
-#             timeout=120,
-#         )
-#         response.raise_for_status()
-#         return response.json()["response"].strip()
+    def generate(self, prompt: str) -> str:
+        response = requests.post(
+            f"{self.base_url}/api/generate",
+            json={
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        return response.json()["response"].strip()

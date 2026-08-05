@@ -73,6 +73,7 @@
 
     <form action="/chat/message" method="POST" enctype="multipart/form-data" class="composer" id="composer">
       <input type="hidden" name="session" value="<%= sessionId %>">
+      <input type="hidden" name="provider" id="provider-input" value="ollama">
 
       <div class="composer-inner">
         <textarea
@@ -106,9 +107,9 @@
                 <span class="model-option-name">Ollama · llama3</span>
                 <svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
               </button>
-              <button type="button" class="model-option disabled" data-value="openai" disabled>
-                <span class="model-option-name">OpenAI</span>
-                <span class="soon-tag">not connected</span>
+              <button type="button" class="model-option" data-value="openai" data-label="OpenAI · gpt-4.1-mini">
+                <span class="model-option-name">OpenAI · gpt-4.1-mini</span>
+                <svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
               </button>
             </div>
           </div>

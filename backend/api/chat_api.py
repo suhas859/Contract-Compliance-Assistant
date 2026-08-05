@@ -5,15 +5,18 @@ from fastapi import APIRouter, File, Form, UploadFile
 
 from backend.chat.qa_engine import PolicyQAEngine
 from backend.chat.session_documents import ingest_session_file, session_collection_name
-# from backend.llm.llm_provider import OllamaLLM
-from backend.llm.llm_provider import OpenAILLM
+from backend.llm.llm_provider import OllamaLLM, OpenAILLM
 from backend.retrieval.retriever import Retriever
 
 router = APIRouter()
 
-# llm = OllamaLLM()
-llm = OpenAILLM()
-qa_engine = PolicyQAEngine(llm)  # Use OpenAI LLM for QA engine
+# One PolicyQAEngine per provider, built once -- selecting a provider per
+# request just picks which engine answers, no per-request construction.
+QA_ENGINES = {
+    "ollama": PolicyQAEngine(OllamaLLM()),
+    "openai": PolicyQAEngine(OpenAILLM()),
+}
+DEFAULT_PROVIDER = "ollama"
 
 
 @router.post("/chat")
@@ -21,8 +24,11 @@ async def chat(
     message: str = Form(""),
     session_id: str = Form("default"),
     history: str = Form("[]"),
+    provider: str = Form(DEFAULT_PROVIDER),
     files: list[UploadFile] = File([]),
 ):
+    qa_engine = QA_ENGINES.get(provider, QA_ENGINES[DEFAULT_PROVIDER])
+
     upload_notes = []
 
     try:

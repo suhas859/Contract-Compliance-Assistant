@@ -52,6 +52,7 @@ router.post("/message", upload.array("files", 10), async (req, res) => {
   sessionMeta[sessionId].updatedAt = Date.now();
 
   const userMessage = req.body.message || "";
+  const provider = req.body.provider || "ollama";
   const files = req.files || [];
   const hasFiles = files.length > 0;
 
@@ -69,6 +70,7 @@ router.post("/message", upload.array("files", 10), async (req, res) => {
     form.append("message", userMessage);
     form.append("session_id", sessionId);
     form.append("history", JSON.stringify(priorHistory));
+    form.append("provider", provider);
     for (const file of files) {
       form.append("files", fs.createReadStream(file.path), file.originalname);
     }

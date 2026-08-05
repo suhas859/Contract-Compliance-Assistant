@@ -41,6 +41,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeModelMenu();
 });
 
+const providerInput = document.getElementById("provider-input");
+
 modelPickerMenu.querySelectorAll(".model-option:not(.disabled)").forEach((opt) => {
   opt.addEventListener("click", () => {
     modelPickerMenu
@@ -48,6 +50,7 @@ modelPickerMenu.querySelectorAll(".model-option:not(.disabled)").forEach((opt) =
       .forEach((o) => o.classList.remove("selected"));
     opt.classList.add("selected");
     modelPickerLabel.textContent = opt.dataset.label;
+    providerInput.value = opt.dataset.value;
     closeModelMenu();
   });
 });
