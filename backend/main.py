@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from backend.api.chat_api import router as chat_router
 from backend.api.ingestion_api import router as ingestion_router
 
 app = FastAPI(
@@ -10,6 +11,11 @@ app.include_router(
     ingestion_router,
     prefix="/api",
     tags=["Ingestion"]
+)
+
+app.include_router(
+    chat_router,
+    tags=["Chat"]
 )
 
 
