@@ -99,6 +99,133 @@
         });
       }
     });
+
+    function scrollToBottom() {
+      win.scrollTop = win.scrollHeight;
+    }
+
+    function makeRow(role) {
+      const row = document.createElement("div");
+      row.className = `row ${role}`;
+
+      const avatar = document.createElement("div");
+      avatar.className = `avatar ${role}`;
+      avatar.textContent = role === "user" ? "U" : "A";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+      return { row, bubble };
+    }
+
+    function appendUserMessage(text, fileName) {
+      const { row, bubble } = makeRow("user");
+
+      if (fileName) {
+        const tag = document.createElement("div");
+        tag.className = "file-tag";
+        tag.textContent = `📎 ${fileName}`;
+        bubble.appendChild(tag);
+      }
+
+      if (text) {
+        const p = document.createElement("p");
+        p.textContent = text;
+        bubble.appendChild(p);
+      }
+
+      win.appendChild(row);
+      scrollToBottom();
+    }
+
+    function appendLoadingBubble() {
+      const { row, bubble } = makeRow("assistant");
+      bubble.innerHTML =
+        '<span class="typing-dots"><span></span><span></span><span></span></span>';
+      win.appendChild(row);
+      scrollToBottom();
+      return bubble;
+    }
+
+    function resolveBubble(bubble, text, citations) {
+      bubble.innerHTML = "";
+
+      if (text) {
+        const p = document.createElement("p");
+        p.textContent = text;
+        bubble.appendChild(p);
+      }
+
+      if (citations && citations.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "citations";
+        citations.forEach((c) => {
+          const pill = document.createElement("span");
+          pill.className = "citation-pill";
+          pill.textContent = c;
+          wrap.appendChild(pill);
+        });
+        bubble.appendChild(wrap);
+      }
+
+      scrollToBottom();
+    }
+
+    const composer = document.getElementById("composer");
+    const sendBtn = document.querySelector(".send-btn");
+    let isSending = false;
+
+    composer.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      if (isSending) return;
+
+      const message = textarea.value.trim();
+      const file = fileInput.files[0] || null;
+
+      if (!message && !file) return;
+
+      const formData = new FormData(composer);
+
+      // Remove the empty-state placeholder on first message, if present.
+      const empty = document.querySelector(".empty-state");
+      if (empty) empty.remove();
+
+      appendUserMessage(message, file ? file.name : null);
+
+      textarea.value = "";
+      textarea.style.height = "auto";
+      fileInput.value = "";
+      filePreview.innerHTML = "";
+
+      isSending = true;
+      sendBtn.disabled = true;
+      textarea.disabled = true;
+
+      const loadingBubble = appendLoadingBubble();
+
+      try {
+        const res = await fetch(composer.action, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        resolveBubble(loadingBubble, data.text, data.citations);
+      } catch (err) {
+        resolveBubble(
+          loadingBubble,
+          "Something went wrong reaching the compliance engine.",
+          []
+        );
+      } finally {
+        isSending = false;
+        sendBtn.disabled = false;
+        textarea.disabled = false;
+        textarea.focus();
+      }
+    });
   </script>
 </body>
 </html>

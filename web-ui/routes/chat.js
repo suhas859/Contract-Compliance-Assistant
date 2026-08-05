@@ -42,23 +42,26 @@ router.post("/message", upload.single("file"), async (req, res) => {
       { headers: form.getHeaders() }
     );
 
-    sessions[sessionId].push({
+    const assistantMessage = {
       role: "assistant",
       text: response.data.reply,
       citations: response.data.citations || [],
-    });
+    };
+    sessions[sessionId].push(assistantMessage);
+
+    res.json(assistantMessage);
   } catch (err) {
     console.error(err.message);
-    sessions[sessionId].push({
+    const assistantMessage = {
       role: "assistant",
       text: "Something went wrong reaching the compliance engine. Check FastAPI logs.",
       citations: [],
-    });
+    };
+    sessions[sessionId].push(assistantMessage);
+    res.status(502).json(assistantMessage);
   } finally {
     if (hasFile) fs.unlink(req.file.path, () => {});
   }
-
-  res.redirect(`/chat?session=${sessionId}`);
 });
 
 module.exports = router;
