@@ -15,25 +15,26 @@ router.get("/", (req, res) => {
   res.render("chat", { messages: sessions[sessionId], sessionId });
 });
 
-router.post("/message", upload.single("file"), async (req, res) => {
+router.post("/message", upload.array("files", 10), async (req, res) => {
   const sessionId = req.body.session || "default";
   sessions[sessionId] = sessions[sessionId] || [];
 
   const userMessage = req.body.message || "";
-  const hasFile = !!req.file;
+  const files = req.files || [];
+  const hasFiles = files.length > 0;
 
   sessions[sessionId].push({
     role: "user",
     text: userMessage,
-    fileName: hasFile ? req.file.originalname : null,
+    fileNames: files.map((file) => file.originalname),
   });
 
   try {
     const form = new FormData();
     form.append("message", userMessage);
     form.append("session_id", sessionId);
-    if (hasFile) {
-      form.append("file", fs.createReadStream(req.file.path), req.file.originalname);
+    for (const file of files) {
+      form.append("files", fs.createReadStream(file.path), file.originalname);
     }
 
     const response = await axios.post(
@@ -52,15 +53,18 @@ router.post("/message", upload.single("file"), async (req, res) => {
     res.json(assistantMessage);
   } catch (err) {
     console.error(err.message);
+    const backendDetail = err.response?.data?.detail;
     const assistantMessage = {
       role: "assistant",
-      text: "Something went wrong reaching the compliance engine. Check FastAPI logs.",
+      text: backendDetail || "Something went wrong reaching the compliance engine. Check FastAPI logs.",
       citations: [],
     };
     sessions[sessionId].push(assistantMessage);
     res.status(502).json(assistantMessage);
   } finally {
-    if (hasFile) fs.unlink(req.file.path, () => {});
+    for (const file of files) {
+      fs.unlink(file.path, () => {});
+    }
   }
 });
 

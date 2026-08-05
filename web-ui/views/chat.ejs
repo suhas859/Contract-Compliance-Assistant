@@ -24,9 +24,9 @@
         <div class="row <%= m.role %>">
           <div class="avatar <%= m.role %>"><%= m.role === 'user' ? 'U' : 'A' %></div>
           <div class="bubble">
-            <% if (m.fileName) { %>
-              <div class="file-tag">📎 <%= m.fileName %></div>
-            <% } %>
+            <% (m.fileNames || (m.fileName ? [m.fileName] : [])).forEach(fileName => { %>
+              <div class="file-tag">📎 <%= fileName %></div>
+            <% }) %>
             <% if (m.text) { %><p><%= m.text %></p><% } %>
             <% if (m.citations && m.citations.length) { %>
               <div class="citations">
@@ -47,7 +47,7 @@
             <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
           </svg>
         </label>
-        <input type="file" id="file-upload" name="file" accept=".pdf,.docx" hidden>
+        <input type="file" id="file-upload" name="files" accept=".pdf,.docx" multiple hidden>
 
         <textarea
           name="message"
@@ -87,18 +87,31 @@
 
     const fileInput = document.getElementById("file-upload");
     const filePreview = document.getElementById("file-preview");
-    fileInput.addEventListener("change", () => {
-      const file = fileInput.files[0];
-      filePreview.innerHTML = file
-        ? `<span class="chip">📎 ${file.name} <button type="button" id="clear-file">✕</button></span>`
-        : "";
-      if (file) {
-        document.getElementById("clear-file").addEventListener("click", () => {
-          fileInput.value = "";
-          filePreview.innerHTML = "";
+    function renderSelectedFiles() {
+      filePreview.innerHTML = "";
+      Array.from(fileInput.files).forEach((file, index) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.append(document.createTextNode(`📎 ${file.name} `));
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.textContent = "✕";
+        removeButton.addEventListener("click", () => {
+          const remaining = new DataTransfer();
+          Array.from(fileInput.files).forEach((selectedFile, selectedIndex) => {
+            if (selectedIndex !== index) remaining.items.add(selectedFile);
+          });
+          fileInput.files = remaining.files;
+          renderSelectedFiles();
         });
-      }
-    });
+
+        chip.appendChild(removeButton);
+        filePreview.appendChild(chip);
+      });
+    }
+
+    fileInput.addEventListener("change", renderSelectedFiles);
 
     function scrollToBottom() {
       win.scrollTop = win.scrollHeight;
@@ -120,15 +133,15 @@
       return { row, bubble };
     }
 
-    function appendUserMessage(text, fileName) {
+    function appendUserMessage(text, fileNames) {
       const { row, bubble } = makeRow("user");
 
-      if (fileName) {
+      fileNames.forEach((fileName) => {
         const tag = document.createElement("div");
         tag.className = "file-tag";
         tag.textContent = `📎 ${fileName}`;
         bubble.appendChild(tag);
-      }
+      });
 
       if (text) {
         const p = document.createElement("p");
@@ -183,9 +196,9 @@
       if (isSending) return;
 
       const message = textarea.value.trim();
-      const file = fileInput.files[0] || null;
+      const files = Array.from(fileInput.files);
 
-      if (!message && !file) return;
+      if (!message && files.length === 0) return;
 
       const formData = new FormData(composer);
 
@@ -193,7 +206,7 @@
       const empty = document.querySelector(".empty-state");
       if (empty) empty.remove();
 
-      appendUserMessage(message, file ? file.name : null);
+      appendUserMessage(message, files.map((file) => file.name));
 
       textarea.value = "";
       textarea.style.height = "auto";

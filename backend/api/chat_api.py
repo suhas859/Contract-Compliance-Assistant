@@ -1,28 +1,30 @@
 import os
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.chat.qa_engine import PolicyQAEngine
 from backend.chat.session_documents import ingest_session_file, session_collection_name
-from backend.llm.llm_provider import OllamaLLM
+# from backend.llm.llm_provider import OllamaLLM
+from backend.llm.llm_provider import OpenAILLM
 from backend.retrieval.retriever import Retriever
 
 router = APIRouter()
 
-llm = OllamaLLM()
-qa_engine = PolicyQAEngine(llm)
+# llm = OllamaLLM()
+llm = OpenAILLM()
+qa_engine = PolicyQAEngine(llm)  # Use OpenAI LLM for QA engine
 
 
 @router.post("/chat")
 async def chat(
     message: str = Form(""),
     session_id: str = Form("default"),
-    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
 ):
-    upload_note = None
+    upload_notes = []
 
-    if file is not None:
-        safe_name = os.path.basename(file.filename)
+    for file in files or []:
+        safe_name = os.path.basename(file.filename or "upload")
         upload_dir = "data/uploads"
         os.makedirs(upload_dir, exist_ok=True)
         file_path = os.path.join(upload_dir, f"{session_id}_{safe_name}")
@@ -31,7 +33,11 @@ async def chat(
             f.write(await file.read())
 
         chunk_count = ingest_session_file(session_id, file_path, safe_name)
-        upload_note = f"Uploaded and indexed {safe_name} ({chunk_count} chunks)."
+        upload_notes.append(
+            f"Uploaded and indexed {safe_name} ({chunk_count} chunks)."
+        )
+
+    upload_note = "\n".join(upload_notes) or None
 
     if not message.strip():
         return {
@@ -40,7 +46,10 @@ async def chat(
         }
 
     retriever = Retriever(collection_name=session_collection_name(session_id))
-    result = qa_engine.answer(retriever, message)
+    try:
+        result = qa_engine.answer(retriever, message)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     if upload_note:
         result["reply"] = f"{upload_note}\n\n{result['reply']}"

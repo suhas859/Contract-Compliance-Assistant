@@ -1,4 +1,5 @@
 import chromadb
+from uuid import uuid4
 
 
 class ChromaStore:
@@ -10,7 +11,8 @@ class ChromaStore:
         )
 
     def add(self, embeddings, chunks, source, doc_type=None, doc_id=None):
-        ids = [f"{source}_{i}" for i in range(len(chunks))]
+        upload_id = uuid4().hex
+        ids = [f"{upload_id}_{i}" for i in range(len(chunks))]
         metadatas = [
             {
                 "source": source,

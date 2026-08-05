@@ -23,3 +23,9 @@ langchain-text-splitters
 # Utilities
 requests
 python-dotenv
+
+
+#llm
+openai
+langchain
+langchain-openai
