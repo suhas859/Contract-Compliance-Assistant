@@ -52,9 +52,9 @@
         <div class="row <%= m.role %>">
           <div class="avatar <%= m.role %>"><%= m.role === 'user' ? 'U' : 'A' %></div>
           <div class="bubble<%= m.isError ? ' error' : '' %>">
-            <% if (m.fileName) { %>
-              <div class="file-tag">📎 <%= m.fileName %></div>
-            <% } %>
+            <% (m.fileNames || (m.fileName ? [m.fileName] : [])).forEach(fileName => { %>
+              <div class="file-tag">📎 <%= fileName %></div>
+            <% }) %>
             <% if (m.text) { %><p><%= m.text %></p><% } %>
             <% if (m.citations && m.citations.length) { %>
               <div class="citations">
@@ -89,7 +89,7 @@
               <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
             </svg>
           </label>
-          <input type="file" id="file-upload" name="file" accept=".pdf,.docx" hidden>
+          <input type="file" id="file-upload" name="files" accept=".pdf,.docx" multiple hidden>
 
           <div class="composer-toolbar-spacer"></div>
 

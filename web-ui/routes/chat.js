@@ -46,13 +46,14 @@ router.get("/", (req, res) => {
   });
 });
 
-router.post("/message", upload.single("file"), async (req, res) => {
+router.post("/message", upload.array("files", 10), async (req, res) => {
   const sessionId = req.body.session || "default";
   ensureSession(sessionId);
   sessionMeta[sessionId].updatedAt = Date.now();
 
   const userMessage = req.body.message || "";
-  const hasFile = !!req.file;
+  const files = req.files || [];
+  const hasFiles = files.length > 0;
 
 
   const priorHistory = sessions[sessionId].map((m) => ({ role: m.role, text: m.text }));
@@ -60,7 +61,7 @@ router.post("/message", upload.single("file"), async (req, res) => {
   sessions[sessionId].push({
     role: "user",
     text: userMessage,
-    fileName: hasFile ? req.file.originalname : null,
+    fileNames: files.map((file) => file.originalname),
   });
 
   try {
@@ -68,8 +69,8 @@ router.post("/message", upload.single("file"), async (req, res) => {
     form.append("message", userMessage);
     form.append("session_id", sessionId);
     form.append("history", JSON.stringify(priorHistory));
-    if (hasFile) {
-      form.append("file", fs.createReadStream(req.file.path), req.file.originalname);
+    for (const file of files) {
+      form.append("files", fs.createReadStream(file.path), file.originalname);
     }
 
     const response = await axios.post(
@@ -88,16 +89,19 @@ router.post("/message", upload.single("file"), async (req, res) => {
     res.json(assistantMessage);
   } catch (err) {
     console.error(err.message);
+    const backendDetail = err.response?.data?.detail;
     const assistantMessage = {
       role: "assistant",
-      text: "Something went wrong reaching the compliance engine. Check FastAPI logs.",
+      text: backendDetail || "Something went wrong reaching the compliance engine. Check FastAPI logs.",
       citations: [],
       isError: true,
     };
     sessions[sessionId].push(assistantMessage);
     res.status(502).json(assistantMessage);
   } finally {
-    if (hasFile) fs.unlink(req.file.path, () => {});
+    for (const file of files) {
+      fs.unlink(file.path, () => {});
+    }
   }
 });
 

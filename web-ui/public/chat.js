@@ -61,25 +61,41 @@ textarea.addEventListener("keydown", (e) => {
 
 const fileInput = document.getElementById("file-upload");
 const filePreview = document.getElementById("file-preview");
-fileInput.addEventListener("change", () => {
-  const file = fileInput.files[0];
-  filePreview.innerHTML = file
-    ? `<span class="chip">📎 ${file.name} <button type="button" id="clear-file">✕</button></span>`
-    : "";
-  textarea.placeholder = file ? FILE_PLACEHOLDER : DEFAULT_PLACEHOLDER;
-  if (file) {
-    document.getElementById("clear-file").addEventListener("click", () => {
-      fileInput.value = "";
-      filePreview.innerHTML = "";
-      textarea.placeholder = DEFAULT_PLACEHOLDER;
+
+function renderSelectedFiles() {
+  filePreview.innerHTML = "";
+  const files = Array.from(fileInput.files);
+
+  files.forEach((file, index) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.append(document.createTextNode(`📎 ${file.name} `));
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.textContent = "✕";
+    removeButton.addEventListener("click", () => {
+      const remaining = new DataTransfer();
+      files.forEach((selectedFile, selectedIndex) => {
+        if (selectedIndex !== index) remaining.items.add(selectedFile);
+      });
+      fileInput.files = remaining.files;
+      renderSelectedFiles();
     });
-  }
-});
+
+    chip.appendChild(removeButton);
+    filePreview.appendChild(chip);
+  });
+
+  textarea.placeholder = files.length ? FILE_PLACEHOLDER : DEFAULT_PLACEHOLDER;
+}
+
+fileInput.addEventListener("change", renderSelectedFiles);
 
 const sidebarList = document.querySelector(".sidebar-list");
 const currentSessionId = document.querySelector('input[name="session"]').value;
 
-function updateSidebar(text, fileName) {
+function updateSidebar(text, fileNames) {
   let activeItem = sidebarList.querySelector(
     `.sidebar-item[data-session="${currentSessionId}"]`
   );
@@ -88,8 +104,8 @@ function updateSidebar(text, fileName) {
     let title = "New chat";
     if (text) {
       title = text.length > 42 ? `${text.slice(0, 42)}…` : text;
-    } else if (fileName) {
-      title = `📎 ${fileName}`;
+    } else if (fileNames && fileNames.length) {
+      title = `📎 ${fileNames[0]}`;
     }
     activeItem = document.createElement("a");
     activeItem.href = `/chat?session=${currentSessionId}`;
@@ -140,16 +156,16 @@ function makeRow(role) {
   return { row, bubble };
 }
 
-function appendUserMessage(text, fileName) {
+function appendUserMessage(text, fileNames) {
   const { row, bubble } = makeRow("user");
 
-  if (fileName) {
+  (fileNames || []).forEach((fileName) => {
     const tag = document.createElement("div");
     tag.className = "file-tag";
     tag.textContent = `📎 ${fileName}`;
     bubble.appendChild(tag);
     addFileChip(fileName);
-  }
+  });
 
   if (text) {
     const p = document.createElement("p");
@@ -205,9 +221,9 @@ composer.addEventListener("submit", async (e) => {
   if (isSending) return;
 
   const message = textarea.value.trim();
-  const file = fileInput.files[0] || null;
+  const files = Array.from(fileInput.files);
 
-  if (!message && !file) return;
+  if (!message && files.length === 0) return;
 
   const formData = new FormData(composer);
 
@@ -215,8 +231,9 @@ composer.addEventListener("submit", async (e) => {
   const empty = document.querySelector(".empty-state");
   if (empty) empty.remove();
 
-  appendUserMessage(message, file ? file.name : null);
-  updateSidebar(message, file ? file.name : null);
+  const fileNames = files.map((file) => file.name);
+  appendUserMessage(message, fileNames);
+  updateSidebar(message, fileNames);
 
   textarea.value = "";
   textarea.style.height = "auto";

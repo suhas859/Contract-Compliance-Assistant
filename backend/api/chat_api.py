@@ -5,13 +5,15 @@ from fastapi import APIRouter, File, Form, UploadFile
 
 from backend.chat.qa_engine import PolicyQAEngine
 from backend.chat.session_documents import ingest_session_file, session_collection_name
-from backend.llm.llm_provider import OllamaLLM
+# from backend.llm.llm_provider import OllamaLLM
+from backend.llm.llm_provider import OpenAILLM
 from backend.retrieval.retriever import Retriever
 
 router = APIRouter()
 
-llm = OllamaLLM()
-qa_engine = PolicyQAEngine(llm)
+# llm = OllamaLLM()
+llm = OpenAILLM()
+qa_engine = PolicyQAEngine(llm)  # Use OpenAI LLM for QA engine
 
 
 @router.post("/chat")
@@ -19,16 +21,16 @@ async def chat(
     message: str = Form(""),
     session_id: str = Form("default"),
     history: str = Form("[]"),
-    file: UploadFile | None = File(None),
+    files: list[UploadFile] = File([]),
 ):
-    upload_note = None
+    upload_notes = []
 
     try:
         parsed_history = json.loads(history)
     except (json.JSONDecodeError, TypeError):
         parsed_history = []
 
-    if file is not None:
+    for file in files:
         safe_name = os.path.basename(file.filename)
         upload_dir = "data/uploads"
         os.makedirs(upload_dir, exist_ok=True)
@@ -38,7 +40,11 @@ async def chat(
             f.write(await file.read())
 
         chunk_count = ingest_session_file(session_id, file_path, safe_name)
-        upload_note = f"Uploaded and indexed {safe_name} ({chunk_count} chunks)."
+        upload_notes.append(
+            f"Uploaded and indexed {safe_name} ({chunk_count} chunks)."
+        )
+
+    upload_note = "\n".join(upload_notes) or None
 
     if not message.strip():
         return {
