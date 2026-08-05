@@ -7,9 +7,37 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div class="app">
+  <div class="layout">
+    <aside class="sidebar">
+      <button type="button" id="new-session-btn" class="sidebar-new-btn" title="Start a new session">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        New chat
+      </button>
+      <nav class="sidebar-list">
+        <% sessionList.forEach(s => { %>
+          <a
+            href="/chat?session=<%= s.id %>"
+            class="sidebar-item<%= s.id === sessionId ? ' active' : '' %>"
+            data-session="<%= s.id %>"
+            title="<%= s.title %>"
+          ><%= s.title %></a>
+        <% }) %>
+      </nav>
+    </aside>
+
+    <div class="app">
     <header class="topbar">
-      <span class="brand">Contract Compliance Assistant</span>
+      <div class="brand">
+        <span class="brand-mark">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </span>
+        <span class="brand-text">Contract Compliance Assistant</span>
+      </div>
     </header>
 
     <main class="chat-window" id="chat-window">
@@ -23,7 +51,7 @@
       <% messages.forEach(m => { %>
         <div class="row <%= m.role %>">
           <div class="avatar <%= m.role %>"><%= m.role === 'user' ? 'U' : 'A' %></div>
-          <div class="bubble">
+          <div class="bubble<%= m.isError ? ' error' : '' %>">
             <% if (m.fileName) { %>
               <div class="file-tag">📎 <%= m.fileName %></div>
             <% } %>
@@ -38,17 +66,15 @@
       <% }) %>
     </main>
 
+    <% const uploadedFiles = [...new Set(messages.filter(m => m.fileName).map(m => m.fileName))]; %>
+    <div id="uploaded-files-strip" class="uploaded-files-strip<%= uploadedFiles.length ? ' has-files' : '' %>">
+      <% uploadedFiles.forEach(f => { %><span class="file-chip" data-file="<%= f %>">📎 <%= f %></span><% }) %>
+    </div>
+
     <form action="/chat/message" method="POST" enctype="multipart/form-data" class="composer" id="composer">
       <input type="hidden" name="session" value="<%= sessionId %>">
 
       <div class="composer-inner">
-        <label for="file-upload" class="file-btn" title="Attach a contract or invoice">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
-          </svg>
-        </label>
-        <input type="file" id="file-upload" name="file" accept=".pdf,.docx" hidden>
-
         <textarea
           name="message"
           id="message-input"
@@ -57,175 +83,49 @@
           autocomplete="off"
         ></textarea>
 
-        <button type="submit" class="send-btn" title="Send">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
-          </svg>
-        </button>
+        <div class="composer-toolbar">
+          <label for="file-upload" class="file-btn" title="Attach a contract or invoice">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </label>
+          <input type="file" id="file-upload" name="file" accept=".pdf,.docx" hidden>
+
+          <div class="composer-toolbar-spacer"></div>
+
+          <div class="model-picker" id="model-picker">
+            <button type="button" class="model-picker-btn" id="model-picker-btn" aria-haspopup="true" aria-expanded="false">
+              <span class="model-dot"></span>
+              <span id="model-picker-label">Ollama · llama3</span>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+            <div class="model-picker-menu" id="model-picker-menu" hidden>
+              <button type="button" class="model-option selected" data-value="ollama" data-label="Ollama · llama3">
+                <span class="model-option-name">Ollama · llama3</span>
+                <svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <button type="button" class="model-option disabled" data-value="openai" disabled>
+                <span class="model-option-name">OpenAI</span>
+                <span class="soon-tag">not connected</span>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="send-btn" title="Send">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div id="file-preview" class="file-preview"></div>
     </form>
+    </div>
   </div>
 
-  <script>
-    const win = document.getElementById("chat-window");
-    win.scrollTop = win.scrollHeight;
-
-    const textarea = document.getElementById("message-input");
-    textarea.addEventListener("input", () => {
-      textarea.style.height = "auto";
-      textarea.style.height = Math.min(textarea.scrollHeight, 160) + "px";
-    });
-
-    textarea.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        document.getElementById("composer").requestSubmit();
-      }
-    });
-
-    const fileInput = document.getElementById("file-upload");
-    const filePreview = document.getElementById("file-preview");
-    fileInput.addEventListener("change", () => {
-      const file = fileInput.files[0];
-      filePreview.innerHTML = file
-        ? `<span class="chip">📎 ${file.name} <button type="button" id="clear-file">✕</button></span>`
-        : "";
-      if (file) {
-        document.getElementById("clear-file").addEventListener("click", () => {
-          fileInput.value = "";
-          filePreview.innerHTML = "";
-        });
-      }
-    });
-
-    function scrollToBottom() {
-      win.scrollTop = win.scrollHeight;
-    }
-
-    function makeRow(role) {
-      const row = document.createElement("div");
-      row.className = `row ${role}`;
-
-      const avatar = document.createElement("div");
-      avatar.className = `avatar ${role}`;
-      avatar.textContent = role === "user" ? "U" : "A";
-
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-
-      row.appendChild(avatar);
-      row.appendChild(bubble);
-      return { row, bubble };
-    }
-
-    function appendUserMessage(text, fileName) {
-      const { row, bubble } = makeRow("user");
-
-      if (fileName) {
-        const tag = document.createElement("div");
-        tag.className = "file-tag";
-        tag.textContent = `📎 ${fileName}`;
-        bubble.appendChild(tag);
-      }
-
-      if (text) {
-        const p = document.createElement("p");
-        p.textContent = text;
-        bubble.appendChild(p);
-      }
-
-      win.appendChild(row);
-      scrollToBottom();
-    }
-
-    function appendLoadingBubble() {
-      const { row, bubble } = makeRow("assistant");
-      bubble.innerHTML =
-        '<span class="typing-dots"><span></span><span></span><span></span></span>';
-      win.appendChild(row);
-      scrollToBottom();
-      return bubble;
-    }
-
-    function resolveBubble(bubble, text, citations) {
-      bubble.innerHTML = "";
-
-      if (text) {
-        const p = document.createElement("p");
-        p.textContent = text;
-        bubble.appendChild(p);
-      }
-
-      if (citations && citations.length) {
-        const wrap = document.createElement("div");
-        wrap.className = "citations";
-        citations.forEach((c) => {
-          const pill = document.createElement("span");
-          pill.className = "citation-pill";
-          pill.textContent = c;
-          wrap.appendChild(pill);
-        });
-        bubble.appendChild(wrap);
-      }
-
-      scrollToBottom();
-    }
-
-    const composer = document.getElementById("composer");
-    const sendBtn = document.querySelector(".send-btn");
-    let isSending = false;
-
-    composer.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      if (isSending) return;
-
-      const message = textarea.value.trim();
-      const file = fileInput.files[0] || null;
-
-      if (!message && !file) return;
-
-      const formData = new FormData(composer);
-
-      // Remove the empty-state placeholder on first message, if present.
-      const empty = document.querySelector(".empty-state");
-      if (empty) empty.remove();
-
-      appendUserMessage(message, file ? file.name : null);
-
-      textarea.value = "";
-      textarea.style.height = "auto";
-      fileInput.value = "";
-      filePreview.innerHTML = "";
-
-      isSending = true;
-      sendBtn.disabled = true;
-      textarea.disabled = true;
-
-      const loadingBubble = appendLoadingBubble();
-
-      try {
-        const res = await fetch(composer.action, {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        resolveBubble(loadingBubble, data.text, data.citations);
-      } catch (err) {
-        resolveBubble(
-          loadingBubble,
-          "Something went wrong reaching the compliance engine.",
-          []
-        );
-      } finally {
-        isSending = false;
-        sendBtn.disabled = false;
-        textarea.disabled = false;
-        textarea.focus();
-      }
-    });
-  </script>
+  <script src="/chat.js"></script>
 </body>
 </html>

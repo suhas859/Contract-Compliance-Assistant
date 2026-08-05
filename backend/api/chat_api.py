@@ -1,3 +1,4 @@
+import json
 import os
 
 from fastapi import APIRouter, File, Form, UploadFile
@@ -17,9 +18,15 @@ qa_engine = PolicyQAEngine(llm)
 async def chat(
     message: str = Form(""),
     session_id: str = Form("default"),
+    history: str = Form("[]"),
     file: UploadFile | None = File(None),
 ):
     upload_note = None
+
+    try:
+        parsed_history = json.loads(history)
+    except (json.JSONDecodeError, TypeError):
+        parsed_history = []
 
     if file is not None:
         safe_name = os.path.basename(file.filename)
@@ -40,7 +47,7 @@ async def chat(
         }
 
     retriever = Retriever(collection_name=session_collection_name(session_id))
-    result = qa_engine.answer(retriever, message)
+    result = qa_engine.answer(retriever, message, history=parsed_history)
 
     if upload_note:
         result["reply"] = f"{upload_note}\n\n{result['reply']}"

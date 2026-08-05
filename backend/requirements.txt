@@ -14,10 +14,11 @@ pdfplumber
 python-docx
 
 
-#Embedding 
+#Embedding
 sentence-transformers
 einops
 langchain-text-splitters
+langchain-core
 
 
 # Utilities
