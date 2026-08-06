@@ -82,3 +82,23 @@ class Retriever:
         for readability at call sites -- functionally identical.
         """
         return self.get_by_id(contract_id)
+
+    def get_by_doc_type(self, doc_type: str) -> list[RetrievedChunk]:
+        """
+        Exact metadata lookup for "give me everything tagged this type",
+        regardless of doc_id -- used when the caller doesn't know a
+        specific ID in advance (e.g. a session-uploaded policy that
+        isn't a known company document like POL-PROC-001).
+        """
+        raw = self.store.get_by_metadata(where={"doc_type": doc_type})
+
+        return [
+            RetrievedChunk(
+                text=doc,
+                source=meta.get("source", "unknown"),
+                doc_type=meta.get("doc_type", "unknown"),
+                doc_id=meta.get("doc_id", ""),
+                score=1.0,
+            )
+            for doc, meta in zip(raw["documents"], raw["metadatas"])
+        ]

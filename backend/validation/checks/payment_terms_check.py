@@ -50,7 +50,7 @@ def validate_payment_terms(invoice: dict, contract: dict, policy_rules: PolicyRu
         citation = f"{contract.get('contract_id', 'Contract')}, Payment Terms"
     else:
         term_days = policy_rules.get_default_payment_term_days()
-        citation = f"{policy_rules.PROCUREMENT_POLICY_ID}, Section 3"
+        citation = policy_rules.get_source_label()
 
     expected_due_date = invoice_date + timedelta(days=term_days)
 

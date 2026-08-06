@@ -16,10 +16,10 @@ class InvoiceValidationEngine:
     to its own module under checks/ -- this class only orchestrates.
     """
 
-    def __init__(self):
+    def __init__(self, retriever: Retriever | None = None):
         self.invoice_parser = InvoiceParser()
         self.contract_parser = ContractParser()
-        self.retriever = Retriever()
+        self.retriever = retriever or Retriever()
         self.policy_rules = PolicyRules(self.retriever)
 
     ##############################################################

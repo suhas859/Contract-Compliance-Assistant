@@ -27,11 +27,12 @@ def validate_amount(invoice: dict, contract: dict, policy_rules: PolicyRules) ->
             )
         ]
 
-    # Tolerance % is read from the live Procurement Policy text
-    # (POL-PROC-001, Section 5), not hardcoded -- a policy revision
-    # changes this without a code change.
+    # Tolerance % is read from the live policy text, not hardcoded -- a
+    # policy revision changes this without a code change.
     tolerance_pct = policy_rules.get_invoice_tolerance_pct()
     tolerance_cap = contract_value * (1 + tolerance_pct / 100)
+
+    citation = policy_rules.get_source_label()
 
     if invoice_amount <= tolerance_cap:
         return [
@@ -41,7 +42,7 @@ def validate_amount(invoice: dict, contract: dict, policy_rules: PolicyRules) ->
                     f"Invoice amount exceeds contract value but is within "
                     f"the {tolerance_pct:g}% tolerance."
                 ),
-                citation=f"{policy_rules.PROCUREMENT_POLICY_ID}, Section 5",
+                citation=citation,
                 category="payment_amount",
             )
         ]
@@ -54,7 +55,7 @@ def validate_amount(invoice: dict, contract: dict, policy_rules: PolicyRules) ->
                 f"the {tolerance_pct:g}% tolerance without an "
                 f"amendment on file."
             ),
-            citation=f"{policy_rules.PROCUREMENT_POLICY_ID}, Section 5",
+            citation=citation,
             category="payment_amount",
         )
     ]

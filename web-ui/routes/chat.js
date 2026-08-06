@@ -85,6 +85,7 @@ router.post("/message", upload.array("files", 10), async (req, res) => {
       role: "assistant",
       text: response.data.reply,
       citations: response.data.citations || [],
+      validations: response.data.validations || [],
     };
     sessions[sessionId].push(assistantMessage);
 
