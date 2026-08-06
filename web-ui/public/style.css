@@ -316,6 +316,99 @@ body {
   border: 1px solid #fecaca;
 }
 .bubble p { margin: 0; white-space: pre-wrap; }
+.row.assistant .bubble.has-validation {
+  width: min(680px, calc(100vw - 110px));
+  max-width: calc(100% - 42px);
+  padding: 0;
+  background: transparent;
+}
+.bubble.has-validation > p {
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--assistant-bubble);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.compliance-card {
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-top: 4px solid #64748b;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+.compliance-card:last-child { margin-bottom: 0; }
+.compliance-card.status-compliant { border-top-color: #16a34a; }
+.compliance-card.status-partially-compliant { border-top-color: #d97706; }
+.compliance-card.status-non-compliant { border-top-color: #dc2626; }
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.report-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.status-badge {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.status-compliant .status-badge { background: #dcfce7; color: #15803d; }
+.status-partially-compliant .status-badge { background: #fef3c7; color: #b45309; }
+.status-non-compliant .status-badge { background: #fee2e2; color: #b91c1c; }
+
+.report-section { padding: 15px 18px; }
+.report-section + .report-section { border-top: 1px solid var(--border); }
+.report-section h4 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.report-section ul {
+  margin: 0;
+  padding-left: 19px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.report-section li + li { margin-top: 6px; }
+
+.finding {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  padding: 9px 0;
+  font-size: 13.5px;
+}
+.finding + .finding { border-top: 1px solid #f0f0f2; }
+.finding-icon { font-weight: 800; }
+.finding-pass .finding-icon { color: #16a34a; }
+.finding-warning .finding-icon { color: #d97706; }
+.finding-fail .finding-icon { color: #dc2626; }
+.finding-citation {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+}
 
 .file-tag {
   font-size: 12.5px;
