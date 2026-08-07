@@ -61,11 +61,68 @@
       <% messages.forEach(m => { %>
         <div class="row <%= m.role %>">
           <div class="avatar <%= m.role %>"><%= m.role === 'user' ? 'U' : 'A' %></div>
-          <div class="bubble<%= m.isError ? ' error' : '' %>">
+          <div class="bubble<%= m.isError ? ' error' : '' %><%= m.validations && m.validations.length ? ' has-validation' : '' %>">
             <% (m.fileNames || (m.fileName ? [m.fileName] : [])).forEach(fileName => { %>
               <div class="file-tag">📎 <%= fileName %></div>
             <% }) %>
-            <% if (m.text) { %><p><%= m.text %></p><% } %>
+            <% if (m.validations && m.validations.length) { %>
+              <% if (m.uploadNote) { %><p><%= m.uploadNote %></p><% } %>
+              <% m.validations.forEach(validation => { %>
+                <% const status = validation.status || 'Unable to Validate'; %>
+                <% const statusIcon = { 'Compliant': '✓', 'Partially Compliant': '⚠', 'Non-Compliant': '✗' }[status] || '⚠'; %>
+                <article class="compliance-card status-<%= status.toLowerCase().replaceAll(' ', '-') %>">
+                  <header class="report-header">
+                    <span class="report-label">Compliance Status</span>
+                    <span class="status-badge"><%= statusIcon %> <%= status %></span>
+                  </header>
+
+                  <% if (validation.error) { %>
+                    <section class="report-section">
+                      <h4>Recommendations</h4>
+                      <ul><li><%= validation.error %></li></ul>
+                    </section>
+                  <% } else { %>
+                    <section class="report-section">
+                      <h4>Findings</h4>
+                      <% (validation.findings || []).forEach(finding => { %>
+                        <% const findingIcon = { 'Pass': '✓', 'Warning': '⚠', 'Fail': '✗' }[finding.status] || '⚠'; %>
+                        <div class="finding finding-<%= finding.status.toLowerCase() %>">
+                          <span class="finding-icon"><%= findingIcon %></span>
+                          <div>
+                            <div><%= finding.description %></div>
+                            <% if (finding.citation) { %>
+                              <span class="finding-citation"><%= finding.citation %></span>
+                            <% } %>
+                          </div>
+                        </div>
+                      <% }) %>
+                    </section>
+
+                    <section class="report-section">
+                      <h4>Related ServiceNow Incidents</h4>
+                      <ul>
+                        <% if (validation.related_incidents && validation.related_incidents.length) { %>
+                          <% validation.related_incidents.forEach(incident => { %><li><%= incident %></li><% }) %>
+                        <% } else { %>
+                          <li>No related incidents available (ServiceNow integration is not configured).</li>
+                        <% } %>
+                      </ul>
+                    </section>
+
+                    <section class="report-section">
+                      <h4>Recommendations</h4>
+                      <ul>
+                        <% if (validation.recommendations && validation.recommendations.length) { %>
+                          <% validation.recommendations.forEach(recommendation => { %><li><%= recommendation %></li><% }) %>
+                        <% } else { %>
+                          <li>No corrective action is required.</li>
+                        <% } %>
+                      </ul>
+                    </section>
+                  <% } %>
+                </article>
+              <% }) %>
+            <% } else if (m.text) { %><p><%= m.text %></p><% } %>
             <% if (m.citations && m.citations.length) { %>
               <div class="citations">
                 <% m.citations.forEach(c => { %><span class="citation-pill"><%= c %></span><% }) %>

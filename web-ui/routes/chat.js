@@ -84,6 +84,7 @@ router.post("/message", upload.array("files", 10), async (req, res) => {
     const assistantMessage = {
       role: "assistant",
       text: response.data.reply,
+      uploadNote: response.data.upload_note || "",
       citations: response.data.citations || [],
       validations: response.data.validations || [],
     };

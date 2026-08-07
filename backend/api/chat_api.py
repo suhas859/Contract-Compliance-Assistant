@@ -23,18 +23,76 @@ DEFAULT_PROVIDER = "ollama"
 invoice_parser = InvoiceParser()
 
 
-def summarize_validations(validations: list[dict]) -> str:
-    """
-    One line per validated invoice, just the headline status. The full
-    itemized findings remain available in `validations`.
-    """
-    lines = []
-    for v in validations:
-        if "error" in v:
-            lines.append(v["error"])
-        else:
-            lines.append(f"This invoice is {v['status']}.")
+STATUS_ICONS = {
+    "Compliant": "✓",
+    "Partially Compliant": "⚠",
+    "Non-Compliant": "✗",
+}
+
+FINDING_ICONS = {
+    "Pass": "✓",
+    "Warning": "⚠",
+    "Fail": "✗",
+}
+
+RECOMMENDATIONS = {
+    "supplier_match": "Verify the supplier details and use the supplier named in the approved contract.",
+    "contract_period": "Confirm the invoice date or obtain a valid contract extension or amendment.",
+    "payment_amount": "Revise the invoice or obtain an approved contract amendment.",
+    "payment_terms": "Correct the due date to match the applicable payment terms.",
+    "contract_lookup": "Add the correct Contract ID and ensure the approved contract is available.",
+}
+
+
+def format_validation(validation: dict) -> str:
+    """Render one validation report in the human-readable chat format."""
+    if "error" in validation:
+        return f"Compliance Status:\n⚠ Unable to Validate\n\nRecommendations\n- {validation['error']}"
+
+    status = validation.get("status", "Partially Compliant")
+    findings = validation.get("findings", [])
+    lines = [
+        "Compliance Status:",
+        f"{STATUS_ICONS.get(status, '⚠')} {status}",
+        "",
+        "Findings",
+    ]
+
+    for finding in findings:
+        icon = FINDING_ICONS.get(finding.get("status"), "⚠")
+        description = finding.get("description", "No details available.")
+        citation = finding.get("citation")
+        suffix = f" ({citation})" if citation else ""
+        lines.append(f"{icon} {description}{suffix}")
+
+    lines.extend(["", "Related ServiceNow Incidents"])
+    incidents = validation.get("related_incidents", [])
+    if incidents:
+        lines.extend(f"- {incident}" for incident in incidents)
+    else:
+        lines.append("- No related incidents available (ServiceNow integration is not configured).")
+
+    lines.extend(["", "Recommendations"])
+    categories = {
+        finding.get("category")
+        for finding in findings
+        if finding.get("status") in {"Warning", "Fail"}
+    }
+    recommendations = [
+        recommendation
+        for category, recommendation in RECOMMENDATIONS.items()
+        if category in categories
+    ]
+    if recommendations:
+        lines.extend(f"- {recommendation}" for recommendation in recommendations)
+    else:
+        lines.append("- No corrective action is required.")
+
     return "\n".join(lines)
+
+
+def summarize_validations(validations: list[dict]) -> str:
+    return "\n\n".join(format_validation(validation) for validation in validations)
 
 
 @router.post("/chat")
@@ -92,7 +150,20 @@ async def chat(
             )
 
     for file_path in invoice_files:
-        validations.append(validate_session_invoice(session_id, file_path))
+        validation = validate_session_invoice(session_id, file_path)
+        if "error" not in validation:
+            categories = {
+                finding.get("category")
+                for finding in validation.get("findings", [])
+                if finding.get("status") in {"Warning", "Fail"}
+            }
+            validation["recommendations"] = [
+                recommendation
+                for category, recommendation in RECOMMENDATIONS.items()
+                if category in categories
+            ]
+            validation["related_incidents"] = []
+        validations.append(validation)
 
     upload_note = "\n".join(upload_notes) or None
 
@@ -104,6 +175,7 @@ async def chat(
         reply_parts = [p for p in [upload_note, summarize_validations(validations)] if p]
         return {
             "reply": "\n\n".join(reply_parts),
+            "upload_note": upload_note,
             "citations": [],
             "validations": validations,
         }

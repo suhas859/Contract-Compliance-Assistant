@@ -64,12 +64,22 @@ textarea.addEventListener("keydown", (e) => {
 
 const fileInput = document.getElementById("file-upload");
 const filePreview = document.getElementById("file-preview");
+let selectedFiles = [];
+
+function fileKey(file) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function syncFileInput() {
+  const transfer = new DataTransfer();
+  selectedFiles.forEach((file) => transfer.items.add(file));
+  fileInput.files = transfer.files;
+}
 
 function renderSelectedFiles() {
   filePreview.innerHTML = "";
-  const files = Array.from(fileInput.files);
 
-  files.forEach((file, index) => {
+  selectedFiles.forEach((file, index) => {
     const chip = document.createElement("span");
     chip.className = "chip";
     chip.append(document.createTextNode(`📎 ${file.name} `));
@@ -78,11 +88,8 @@ function renderSelectedFiles() {
     removeButton.type = "button";
     removeButton.textContent = "✕";
     removeButton.addEventListener("click", () => {
-      const remaining = new DataTransfer();
-      files.forEach((selectedFile, selectedIndex) => {
-        if (selectedIndex !== index) remaining.items.add(selectedFile);
-      });
-      fileInput.files = remaining.files;
+      selectedFiles.splice(index, 1);
+      syncFileInput();
       renderSelectedFiles();
     });
 
@@ -90,10 +97,25 @@ function renderSelectedFiles() {
     filePreview.appendChild(chip);
   });
 
-  textarea.placeholder = files.length ? FILE_PLACEHOLDER : DEFAULT_PLACEHOLDER;
+  textarea.placeholder = selectedFiles.length
+    ? FILE_PLACEHOLDER
+    : DEFAULT_PLACEHOLDER;
 }
 
-fileInput.addEventListener("change", renderSelectedFiles);
+fileInput.addEventListener("change", () => {
+  const existingKeys = new Set(selectedFiles.map(fileKey));
+
+  Array.from(fileInput.files).forEach((file) => {
+    const key = fileKey(file);
+    if (!existingKeys.has(key)) {
+      selectedFiles.push(file);
+      existingKeys.add(key);
+    }
+  });
+
+  syncFileInput();
+  renderSelectedFiles();
+});
 
 const dropZone = document.getElementById("app-drop-zone");
 const dropOverlay = document.getElementById("drop-overlay");
@@ -233,15 +255,111 @@ function appendLoadingBubble() {
   return bubble;
 }
 
-function resolveBubble(bubble, text, citations, isError) {
+const statusSymbols = {
+  Compliant: "✓",
+  "Partially Compliant": "⚠",
+  "Non-Compliant": "✗",
+};
+
+const findingSymbols = { Pass: "✓", Warning: "⚠", Fail: "✗" };
+
+function appendListSection(card, title, items, emptyMessage) {
+  const section = document.createElement("section");
+  section.className = "report-section";
+
+  const heading = document.createElement("h4");
+  heading.textContent = title;
+  section.appendChild(heading);
+
+  const list = document.createElement("ul");
+  const values = items && items.length ? items : [emptyMessage];
+  values.forEach((value) => {
+    const item = document.createElement("li");
+    item.textContent = value;
+    list.appendChild(item);
+  });
+  section.appendChild(list);
+  card.appendChild(section);
+}
+
+function appendValidationCard(bubble, validation) {
+  const card = document.createElement("article");
+  const status = validation.status || "Unable to Validate";
+  const statusClass = status.toLowerCase().replaceAll(" ", "-");
+  card.className = `compliance-card status-${statusClass}`;
+
+  const header = document.createElement("header");
+  header.className = "report-header";
+  const label = document.createElement("span");
+  label.className = "report-label";
+  label.textContent = "Compliance Status";
+  const badge = document.createElement("span");
+  badge.className = "status-badge";
+  badge.textContent = `${statusSymbols[status] || "⚠"} ${status}`;
+  header.append(label, badge);
+  card.appendChild(header);
+
+  if (validation.error) {
+    appendListSection(card, "Recommendations", [validation.error], "Upload the required documents.");
+    bubble.appendChild(card);
+    return;
+  }
+
+  const findingsSection = document.createElement("section");
+  findingsSection.className = "report-section";
+  const findingsTitle = document.createElement("h4");
+  findingsTitle.textContent = "Findings";
+  findingsSection.appendChild(findingsTitle);
+
+  (validation.findings || []).forEach((finding) => {
+    const findingRow = document.createElement("div");
+    findingRow.className = `finding finding-${finding.status.toLowerCase()}`;
+    const icon = document.createElement("span");
+    icon.className = "finding-icon";
+    icon.textContent = findingSymbols[finding.status] || "⚠";
+    const content = document.createElement("div");
+    const description = document.createElement("div");
+    description.textContent = finding.description;
+    content.appendChild(description);
+    if (finding.citation) {
+      const citation = document.createElement("span");
+      citation.className = "finding-citation";
+      citation.textContent = finding.citation;
+      content.appendChild(citation);
+    }
+    findingRow.append(icon, content);
+    findingsSection.appendChild(findingRow);
+  });
+  card.appendChild(findingsSection);
+
+  appendListSection(
+    card,
+    "Related ServiceNow Incidents",
+    validation.related_incidents,
+    "No related incidents available (ServiceNow integration is not configured)."
+  );
+  appendListSection(
+    card,
+    "Recommendations",
+    validation.recommendations,
+    "No corrective action is required."
+  );
+  bubble.appendChild(card);
+}
+
+function resolveBubble(bubble, text, citations, isError, validations = [], uploadNote = "") {
   bubble.innerHTML = "";
   bubble.classList.toggle("error", !!isError);
+  bubble.classList.toggle("has-validation", validations.length > 0);
 
-  if (text) {
+  const displayText = validations.length ? uploadNote : text;
+  if (displayText) {
     const p = document.createElement("p");
-    p.textContent = text;
+    p.textContent = displayText;
     bubble.appendChild(p);
   }
+
+  validations.forEach((validation) => appendValidationCard(bubble, validation));
 
   if (citations && citations.length) {
     const wrap = document.createElement("div");
@@ -285,6 +403,7 @@ composer.addEventListener("submit", async (e) => {
   textarea.value = "";
   textarea.style.height = "auto";
   textarea.placeholder = DEFAULT_PLACEHOLDER;
+  selectedFiles = [];
   fileInput.value = "";
   filePreview.innerHTML = "";
 
@@ -300,7 +419,14 @@ composer.addEventListener("submit", async (e) => {
       body: formData,
     });
     const data = await res.json();
-    resolveBubble(loadingBubble, data.text, data.citations, !res.ok);
+    resolveBubble(
+      loadingBubble,
+      data.text,
+      data.citations,
+      !res.ok,
+      data.validations || [],
+      data.uploadNote || ""
+    );
   } catch (err) {
     resolveBubble(
       loadingBubble,
