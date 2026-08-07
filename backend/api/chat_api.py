@@ -25,9 +25,8 @@ invoice_parser = InvoiceParser()
 
 def summarize_validations(validations: list[dict]) -> str:
     """
-    One line per validated invoice, just the headline status -- enough
-    to visually confirm it worked. The full itemized findings are still
-    in `validations` for whatever detailed report view gets built later.
+    One line per validated invoice, just the headline status. The full
+    itemized findings remain available in `validations`.
     """
     lines = []
     for v in validations:

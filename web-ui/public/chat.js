@@ -95,6 +95,50 @@ function renderSelectedFiles() {
 
 fileInput.addEventListener("change", renderSelectedFiles);
 
+const dropZone = document.getElementById("app-drop-zone");
+const dropOverlay = document.getElementById("drop-overlay");
+let dragCounter = 0;
+
+function addFilesToInput(newFiles) {
+  const merged = new DataTransfer();
+  Array.from(fileInput.files).forEach((f) => merged.items.add(f));
+  newFiles.forEach((f) => merged.items.add(f));
+  fileInput.files = merged.files;
+  renderSelectedFiles();
+}
+
+dropZone.addEventListener("dragenter", (e) => {
+  e.preventDefault();
+  dragCounter++;
+  dropOverlay.classList.add("active");
+});
+
+dropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+});
+
+dropZone.addEventListener("dragleave", (e) => {
+  e.preventDefault();
+  dragCounter = Math.max(0, dragCounter - 1);
+  if (dragCounter === 0) dropOverlay.classList.remove("active");
+});
+
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dragCounter = 0;
+  dropOverlay.classList.remove("active");
+
+  const dropped = Array.from(e.dataTransfer.files).filter((f) =>
+    /\.(pdf|docx)$/i.test(f.name)
+  );
+  if (dropped.length) addFilesToInput(dropped);
+});
+
+// Safety net: without this, dropping a file anywhere outside the zone
+// (or missing it slightly) makes the browser navigate to/open the file.
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => e.preventDefault());
+
 const sidebarList = document.querySelector(".sidebar-list");
 const currentSessionId = document.querySelector('input[name="session"]').value;
 
