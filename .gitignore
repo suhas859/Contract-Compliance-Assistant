@@ -1,5 +1,6 @@
 /chroma_db
 /data/uploads
+backend/data
 backend/venv
 __pycache__/
 *.py[cod]

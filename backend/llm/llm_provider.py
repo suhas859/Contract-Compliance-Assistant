@@ -59,7 +59,7 @@ class OllamaLLM(LLMProvider):
     """
 
     def __init__(self, model: str | None = None, base_url: str | None = None):
-        self.model = model or os.environ.get("OLLAMA_MODEL", "llama3")
+        self.model = model or os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
         self.base_url = base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
     def generate(self, prompt: str) -> str:

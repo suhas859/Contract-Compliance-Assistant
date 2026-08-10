@@ -4,11 +4,11 @@ from backend.llm.llm_provider import LLMProvider
 from backend.retrieval.retriever import Retriever
 
 PROMPT_TEMPLATE = """You are a compliance assistant. Answer the question using ONLY \
-the document text provided below (policy and/or contract text uploaded this \
-session). If the answer isn't in the text, say so clearly instead of guessing. \
-Use the conversation so far only to understand what the user is referring to \
-(e.g. "that section") -- the document text is still the only source of truth \
-for facts.
+the document text provided below (policy, contract, and/or invoice text \
+uploaded this session). If the answer isn't in the text, say so clearly instead \
+of guessing. Use the conversation so far only to understand what the user is \
+referring to (e.g. "that section") -- the document text is still the only \
+source of truth for facts.
 
 DOCUMENT TEXT:
 {context}
@@ -24,9 +24,10 @@ MAX_HISTORY_MESSAGES = 6
 
 class PolicyQAEngine:
     """
-    Answers a question against whatever policy or contract documents have
-    been uploaded in this chat session: retrieve relevant chunks from the
-    session's collection, then have the LLM answer grounded in them.
+    Answers a question against whatever policy, contract, or invoice
+    documents have been uploaded in this chat session: retrieve relevant
+    chunks from the session's collection, then have the LLM answer
+    grounded in them.
 
     Conversation history is passed in per-call (not stored here) --
     the chat session's messages already live server-side in the Express
@@ -43,14 +44,14 @@ class PolicyQAEngine:
         chunks = retriever.retrieve(
             question,
             top_k=self.top_k,
-            doc_type_filter=["policy", "contract"],
+            doc_type_filter=["policy", "contract", "invoice"],
         )
 
         if not chunks:
             return {
                 "reply": (
-                    "I don't have any uploaded policy or contract document to "
-                    "answer that from yet -- upload one first."
+                    "I don't have any uploaded policy, contract, or invoice "
+                    "document to answer that from yet -- upload one first."
                 ),
                 "citations": [],
             }

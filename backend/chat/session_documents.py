@@ -25,6 +25,7 @@ DOC_TYPE_PREFIXES = {
     "POL-": "policy",
     "SOP-": "sop",
     "KA-": "knowledge_article",
+    "INV-": "invoice",
 }
 
 
@@ -41,12 +42,21 @@ def ingest_session_file(
     file_path: str,
     original_filename: str,
     doc_type: str | None = None,
+    doc_id: str | None = None,
 ) -> dict:
     """
     Parses, chunks, embeds, and stores an uploaded file into this
-    session's collection. doc_type is auto-detected from the document's
-    own ID (e.g. "Contract ID: CTR-...") unless explicitly overridden --
-    lets one upload path handle both policies and contracts.
+    session's collection. doc_type/doc_id are auto-detected from the
+    document's own "Document ID:"/"Contract ID:"/"Article ID:" field
+    unless explicitly overridden.
+
+    The override matters for invoices specifically: their text contains
+    BOTH their own Invoice ID and a reference to a *different*
+    document's Contract ID, and extract_doc_id() doesn't know about
+    "Invoice ID" at all -- left to auto-detect, an invoice would get
+    mistagged as a contract, under the real contract's own ID. Callers
+    that already know the real ID (e.g. chat_api.py, via InvoiceParser)
+    should pass it explicitly instead.
     """
     suffix = Path(file_path).suffix.lower()
 
@@ -61,8 +71,9 @@ def ingest_session_file(
     if not chunks:
         return {"chunk_count": 0, "doc_type": doc_type or "policy"}
 
-    doc_id = extract_doc_id(text)
-    resolved_doc_type = doc_type or infer_doc_type(doc_id)
+    resolved_doc_id = doc_id or extract_doc_id(text)
+    resolved_doc_type = doc_type or infer_doc_type(resolved_doc_id)
+    doc_id = resolved_doc_id
 
     embeddings = embed_chunks(chunks)
 

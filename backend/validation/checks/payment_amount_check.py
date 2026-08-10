@@ -27,6 +27,21 @@ def validate_amount(invoice: dict, contract: dict, policy_rules: PolicyRules) ->
             )
         ]
 
+    # A tolerance % only means something if a real policy set it -- with
+    # no policy at all, there's nothing to test the overage against.
+    if not policy_rules.has_policy():
+        return [
+            Finding(
+                status=FindingStatus.WARNING,
+                description=(
+                    "Invoice amount exceeds contract value and no policy "
+                    "is available to verify an allowable tolerance."
+                ),
+                citation=contract["contract_id"],
+                category="payment_amount",
+            )
+        ]
+
     # Tolerance % is read from the live policy text, not hardcoded -- a
     # policy revision changes this without a code change.
     tolerance_pct = policy_rules.get_invoice_tolerance_pct()

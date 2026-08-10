@@ -122,10 +122,15 @@ const dropOverlay = document.getElementById("drop-overlay");
 let dragCounter = 0;
 
 function addFilesToInput(newFiles) {
-  const merged = new DataTransfer();
-  Array.from(fileInput.files).forEach((f) => merged.items.add(f));
-  newFiles.forEach((f) => merged.items.add(f));
-  fileInput.files = merged.files;
+  const existingKeys = new Set(selectedFiles.map(fileKey));
+  newFiles.forEach((file) => {
+    const key = fileKey(file);
+    if (!existingKeys.has(key)) {
+      selectedFiles.push(file);
+      existingKeys.add(key);
+    }
+  });
+  syncFileInput();
   renderSelectedFiles();
 }
 

@@ -3,6 +3,7 @@ from backend.validation.checks.contract_period_check import validate_contract_da
 from backend.validation.checks.payment_amount_check import validate_amount
 from backend.validation.checks.payment_terms_check import validate_payment_terms
 from backend.validation.checks.supplier_check import validate_supplier
+from backend.validation.checks.tax_id_check import validate_tax_id
 from backend.validation.contract_parser import ContractParser
 from backend.validation.invoice_parser import InvoiceParser
 from backend.validation.models import ComplianceReport, Finding, FindingStatus
@@ -14,6 +15,10 @@ class InvoiceValidationEngine:
     Validates an invoice against its governing contract. Parses the
     invoice, retrieves the governing contract, then delegates each rule
     to its own module under checks/ -- this class only orchestrates.
+
+    Only checks the invoice against the contract -- doesn't re-audit
+    whether the contract itself is well-formed (e.g. has all its
+    required clauses). That's a separate Contract Review concern.
     """
 
     def __init__(self, retriever: Retriever | None = None):
@@ -72,6 +77,7 @@ class InvoiceValidationEngine:
         # Run validations
         # -----------------------------
         report.findings.extend(validate_supplier(invoice, contract))
+        report.findings.extend(validate_tax_id(invoice, contract))
         report.findings.extend(validate_contract_dates(invoice, contract))
         report.findings.extend(validate_amount(invoice, contract, self.policy_rules))
         report.findings.extend(validate_payment_terms(invoice, contract, self.policy_rules))

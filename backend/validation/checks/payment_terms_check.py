@@ -48,9 +48,21 @@ def validate_payment_terms(invoice: dict, contract: dict, policy_rules: PolicyRu
     if contract_term_days is not None:
         term_days = contract_term_days
         citation = f"{contract.get('contract_id', 'Contract')}, Payment Terms"
-    else:
+    elif policy_rules.has_policy():
         term_days = policy_rules.get_default_payment_term_days()
         citation = policy_rules.get_source_label()
+    else:
+        return [
+            Finding(
+                status=FindingStatus.WARNING,
+                description=(
+                    "Unable to verify payment terms -- the contract does "
+                    "not specify payment terms and no policy is available."
+                ),
+                citation=contract.get("contract_id", "Contract"),
+                category="payment_terms",
+            )
+        ]
 
     expected_due_date = invoice_date + timedelta(days=term_days)
 

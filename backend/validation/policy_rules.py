@@ -35,6 +35,15 @@ class PolicyRules:
 
         return self._policy_text
 
+    def has_policy(self) -> bool:
+        """
+        Whether any policy document was actually found -- checks that
+        only apply when a policy exists (tolerance %, default payment
+        term) must call this first instead of silently falling back to
+        the hardcoded default when there's nothing backing it.
+        """
+        return bool(self._get_policy_text())
+
     def get_source_label(self) -> str:
         """
         The actual document this policy text came from -- use this in
@@ -43,6 +52,14 @@ class PolicyRules:
         """
         self._get_policy_text()
         return self._source_label
+
+    def get_policy_text(self) -> str:
+        """
+        The full raw policy text -- for checks that need to read it
+        directly (e.g. an LLM-based clause check) rather than extract a
+        single number out of it.
+        """
+        return self._get_policy_text()
 
     def get_invoice_tolerance_pct(self) -> float:
         match = self.TOLERANCE_PATTERN.search(self._get_policy_text())

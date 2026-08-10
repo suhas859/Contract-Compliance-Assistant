@@ -7,69 +7,49 @@ const fs = require("fs");
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
 
-const sessions = {};
-const sessionMeta = {};
+// Chat history lives server-side in the FastAPI backend (SQLite, via
+// LangChain's message-history schema) -- this layer is a thin passthrough
+// so a restart here doesn't lose anything.
 
-function ensureSession(sessionId) {
-  if (!sessions[sessionId]) {
-    sessions[sessionId] = [];
-    sessionMeta[sessionId] = { updatedAt: Date.now() };
+async function fetchSessionList() {
+  try {
+    const res = await axios.get(`${process.env.FASTAPI_BASE_URL}/chat/sessions`);
+    return (res.data.sessions || []).map((s) => ({ id: s.id, title: s.title }));
+  } catch (err) {
+    console.error("Failed to load session list:", err.message);
+    return [];
   }
 }
 
-function getSessionTitle(sessionId) {
-  const firstUserMessage = (sessions[sessionId] || []).find((m) => m.role === "user");
-  if (!firstUserMessage) return "New chat";
-  if (firstUserMessage.text) {
-    return firstUserMessage.text.length > 42
-      ? `${firstUserMessage.text.slice(0, 42)}…`
-      : firstUserMessage.text;
+async function fetchSessionMessages(sessionId) {
+  try {
+    const res = await axios.get(`${process.env.FASTAPI_BASE_URL}/chat/sessions/${sessionId}`);
+    return res.data.messages || [];
+  } catch (err) {
+    console.error("Failed to load session history:", err.message);
+    return [];
   }
-  if (firstUserMessage.fileName) return `📎 ${firstUserMessage.fileName}`;
-  return "New chat";
 }
 
-function getSessionList() {
-  return Object.keys(sessions)
-    .filter((id) => sessions[id].length > 0)
-    .sort((a, b) => (sessionMeta[b]?.updatedAt || 0) - (sessionMeta[a]?.updatedAt || 0))
-    .map((id) => ({ id, title: getSessionTitle(id) }));
-}
-
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const sessionId = req.query.session || "default";
-  ensureSession(sessionId);
-  res.render("chat", {
-    messages: sessions[sessionId],
-    sessionId,
-    sessionList: getSessionList(),
-  });
+  const [messages, sessionList] = await Promise.all([
+    fetchSessionMessages(sessionId),
+    fetchSessionList(),
+  ]);
+  res.render("chat", { messages, sessionId, sessionList });
 });
 
 router.post("/message", upload.array("files", 10), async (req, res) => {
   const sessionId = req.body.session || "default";
-  ensureSession(sessionId);
-  sessionMeta[sessionId].updatedAt = Date.now();
-
   const userMessage = req.body.message || "";
   const provider = req.body.provider || "ollama";
   const files = req.files || [];
-  const hasFiles = files.length > 0;
-
-
-  const priorHistory = sessions[sessionId].map((m) => ({ role: m.role, text: m.text }));
-
-  sessions[sessionId].push({
-    role: "user",
-    text: userMessage,
-    fileNames: files.map((file) => file.originalname),
-  });
 
   try {
     const form = new FormData();
     form.append("message", userMessage);
     form.append("session_id", sessionId);
-    form.append("history", JSON.stringify(priorHistory));
     form.append("provider", provider);
     for (const file of files) {
       form.append("files", fs.createReadStream(file.path), file.originalname);
@@ -81,27 +61,22 @@ router.post("/message", upload.array("files", 10), async (req, res) => {
       { headers: form.getHeaders() }
     );
 
-    const assistantMessage = {
+    res.json({
       role: "assistant",
       text: response.data.reply,
       uploadNote: response.data.upload_note || "",
       citations: response.data.citations || [],
       validations: response.data.validations || [],
-    };
-    sessions[sessionId].push(assistantMessage);
-
-    res.json(assistantMessage);
+    });
   } catch (err) {
     console.error(err.message);
     const backendDetail = err.response?.data?.detail;
-    const assistantMessage = {
+    res.status(502).json({
       role: "assistant",
       text: backendDetail || "Something went wrong reaching the compliance engine. Check FastAPI logs.",
       citations: [],
       isError: true,
-    };
-    sessions[sessionId].push(assistantMessage);
-    res.status(502).json(assistantMessage);
+    });
   } finally {
     for (const file of files) {
       fs.unlink(file.path, () => {});
