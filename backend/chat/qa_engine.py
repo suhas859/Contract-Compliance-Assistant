@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from backend.llm.llm_provider import LLMProvider
@@ -73,6 +75,31 @@ class PolicyQAEngine:
         citations = sorted({chunk.source for chunk in chunks})
 
         return {"reply": reply, "citations": citations}
+
+    def answer_stream(
+        self, retriever: Retriever, question: str, history: list[dict] | None = None
+    ) -> tuple[Iterator[str], list[str]]:
+        chunks = retriever.retrieve(
+            question,
+            top_k=self.top_k,
+            doc_type_filter=["policy", "contract", "invoice"],
+        )
+        if not chunks:
+            message = (
+                "I don't have any uploaded policy, contract, or invoice "
+                "document to answer that from yet -- upload one first."
+            )
+            return iter([message]), []
+
+        context = "\n\n".join(
+            f"[Source: {chunk.source}]\n{chunk.text}" for chunk in chunks
+        )
+        prompt = PROMPT_TEMPLATE.format(
+            context=context,
+            history_block=self._format_history(history),
+            question=question,
+        )
+        return self.llm.stream(prompt), sorted({chunk.source for chunk in chunks})
 
     @staticmethod
     def _to_messages(history: list[dict] | None) -> list[BaseMessage]:

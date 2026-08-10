@@ -381,6 +381,70 @@ function resolveBubble(bubble, text, citations, isError, validations = [], uploa
   scrollToBottom();
 }
 
+async function consumeAssistantResponse(res, bubble) {
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/x-ndjson")) {
+    const data = await res.json();
+    resolveBubble(
+      bubble,
+      data.text ?? data.reply,
+      data.citations,
+      !res.ok,
+      data.validations || [],
+      data.uploadNote ?? data.upload_note ?? ""
+    );
+    return;
+  }
+
+  if (!res.ok || !res.body) throw new Error(`Chat request failed (${res.status})`);
+
+  bubble.innerHTML = "";
+  const output = document.createElement("p");
+  bubble.appendChild(output);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let text = "";
+  let citations = [];
+  let nextSequence = 0;
+  const queuedTokens = new Map();
+
+  const renderQueuedTokens = () => {
+    while (queuedTokens.has(nextSequence)) {
+      text += queuedTokens.get(nextSequence);
+      queuedTokens.delete(nextSequence);
+      nextSequence += 1;
+    }
+    output.textContent = text;
+    scrollToBottom();
+  };
+
+  const handleLine = (line) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line);
+    if (event.type === "token") {
+      queuedTokens.set(event.sequence ?? nextSequence, event.text);
+      renderQueuedTokens();
+    } else if (event.type === "done") {
+      citations = event.citations || [];
+    } else if (event.type === "error") {
+      throw new Error(event.message || "The compliance engine stopped streaming.");
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    pending += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = pending.split("\n");
+    pending = lines.pop() || "";
+    lines.forEach(handleLine);
+    if (done) break;
+  }
+  if (pending) handleLine(pending);
+  resolveBubble(bubble, text, citations, false);
+}
+
 const composer = document.getElementById("composer");
 const sendBtn = document.querySelector(".send-btn");
 let isSending = false;
@@ -423,19 +487,11 @@ composer.addEventListener("submit", async (e) => {
       method: "POST",
       body: formData,
     });
-    const data = await res.json();
-    resolveBubble(
-      loadingBubble,
-      data.text,
-      data.citations,
-      !res.ok,
-      data.validations || [],
-      data.uploadNote || ""
-    );
+    await consumeAssistantResponse(res, loadingBubble);
   } catch (err) {
     resolveBubble(
       loadingBubble,
-      "Something went wrong reaching the compliance engine.",
+      err.message || "Something went wrong reaching the compliance engine.",
       [],
       true
     );

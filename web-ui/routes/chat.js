@@ -51,6 +51,7 @@ router.post("/message", upload.array("files", 10), async (req, res) => {
     form.append("message", userMessage);
     form.append("session_id", sessionId);
     form.append("provider", provider);
+    form.append("stream", "true");
     for (const file of files) {
       form.append("files", fs.createReadStream(file.path), file.originalname);
     }
@@ -58,16 +59,14 @@ router.post("/message", upload.array("files", 10), async (req, res) => {
     const response = await axios.post(
       `${process.env.FASTAPI_BASE_URL}/chat`,
       form,
-      { headers: form.getHeaders() }
+      { headers: form.getHeaders(), responseType: "stream" }
     );
-
-    res.json({
-      role: "assistant",
-      text: response.data.reply,
-      uploadNote: response.data.upload_note || "",
-      citations: response.data.citations || [],
-      validations: response.data.validations || [],
-    });
+    res.status(response.status);
+    res.set("Content-Type", response.headers["content-type"] || "application/x-ndjson");
+    res.set("Cache-Control", "no-cache, no-transform");
+    res.set("X-Accel-Buffering", "no");
+    res.flushHeaders();
+    response.data.pipe(res);
   } catch (err) {
     console.error(err.message);
     const backendDetail = err.response?.data?.detail;

@@ -1,6 +1,8 @@
+import json
 import os
 
 from fastapi import APIRouter, File, Form, UploadFile
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 
 from backend.chat.chat_store import SQLiteChatMessageHistory, get_session_messages, list_sessions
@@ -144,6 +146,7 @@ async def chat(
     message: str = Form(""),
     session_id: str = Form("default"),
     provider: str = Form(DEFAULT_PROVIDER),
+    stream: bool = Form(False),
     files: list[UploadFile] = File([]),
 ):
     qa_engine = QA_ENGINES.get(provider, QA_ENGINES[DEFAULT_PROVIDER])
@@ -246,6 +249,57 @@ async def chat(
             {"role": "user" if isinstance(m, HumanMessage) else "assistant", "text": m.content}
             for m in history_store.messages
         ]
+        if stream:
+            token_stream, citations = qa_engine.answer_stream(
+                retriever, message, history=parsed_history
+            )
+
+            def generate_events():
+                reply_parts = []
+                sequence = 0
+                try:
+                    if upload_note:
+                        reply_parts.append(upload_note + "\n\n")
+                        yield json.dumps(
+                            {"type": "token", "sequence": sequence, "text": reply_parts[-1]}
+                        ) + "\n"
+                        sequence += 1
+                    for token in token_stream:
+                        reply_parts.append(token)
+                        yield json.dumps(
+                            {"type": "token", "sequence": sequence, "text": token}
+                        ) + "\n"
+                        sequence += 1
+                    reply = "".join(reply_parts)
+                    history_store.add_messages([
+                        HumanMessage(
+                            content=message,
+                            additional_kwargs={"fileNames": [name for _, name in saved_files]},
+                        ),
+                        AIMessage(
+                            content=reply,
+                            additional_kwargs={
+                                "uploadNote": upload_note or "",
+                                "citations": citations,
+                                "validations": [],
+                            },
+                        ),
+                    ])
+                    yield json.dumps(
+                        {"type": "done", "sequence": sequence, "citations": citations}
+                    ) + "\n"
+                except Exception as exc:
+                    yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
+
+            return StreamingResponse(
+                generate_events(),
+                media_type="application/x-ndjson",
+                headers={
+                    "Cache-Control": "no-cache, no-transform",
+                    "X-Accel-Buffering": "no",
+                },
+            )
+
         result = qa_engine.answer(retriever, message, history=parsed_history)
 
         if upload_note:
