@@ -1,5 +1,7 @@
 import os
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
+import json
 from pathlib import Path
 
 import requests
@@ -16,6 +18,10 @@ class LLMProvider(ABC):
 
     @abstractmethod
     def generate(self, prompt: str) -> str:
+        ...
+
+    @abstractmethod
+    def stream(self, prompt: str) -> Iterator[str]:
         ...
 
 class OpenAILLM(LLMProvider):
@@ -53,6 +59,38 @@ class OpenAILLM(LLMProvider):
             )
         return response.json()["choices"][0]["message"]["content"].strip()
 
+    def stream(self, prompt: str) -> Iterator[str]:
+        if not self.api_key:
+            raise RuntimeError("OPENAI_API_KEY is not configured.")
+
+        with requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": True,
+            },
+            timeout=120,
+            stream=True,
+        ) as response:
+            response.raise_for_status()
+            # The default 512-byte chunk size makes short model tokens appear
+            # in large batches instead of streaming as they arrive.
+            for line in response.iter_lines(chunk_size=1, decode_unicode=True):
+                if not line or not line.startswith("data: "):
+                    continue
+                payload = line[6:]
+                if payload == "[DONE]":
+                    break
+                data = json.loads(payload)
+                token = data["choices"][0].get("delta", {}).get("content")
+                if token:
+                    yield token
+
 class OllamaLLM(LLMProvider):
     """
     Talks to a local Ollama server over its HTTP API.
@@ -74,3 +112,21 @@ class OllamaLLM(LLMProvider):
         )
         response.raise_for_status()
         return response.json()["response"].strip()
+
+    def stream(self, prompt: str) -> Iterator[str]:
+        with requests.post(
+            f"{self.base_url}/api/generate",
+            json={"model": self.model, "prompt": prompt, "stream": True},
+            timeout=120,
+            stream=True,
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines(chunk_size=1, decode_unicode=True):
+                if not line:
+                    continue
+                data = json.loads(line)
+                token = data.get("response")
+                if token:
+                    yield token
+                if data.get("done"):
+                    break
