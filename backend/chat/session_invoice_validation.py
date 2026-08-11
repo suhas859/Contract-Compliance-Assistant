@@ -1,5 +1,6 @@
-from backend.chat.session_documents import session_collection_name
+from backend.chat.session_documents import ingest_session_file, session_collection_name
 from backend.retrieval.retriever import Retriever
+from backend.validation.invoice_parser import InvoiceParser
 from backend.validation.invoice_validation import InvoiceValidationEngine
 
 # Every invoice ever uploaded to a session, keyed by session_id -- lets a
@@ -9,11 +10,41 @@ from backend.validation.invoice_validation import InvoiceValidationEngine
 # sessions dict, the Chroma collections).
 _SESSION_INVOICES: dict[str, list[dict]] = {}
 
+_invoice_parser = InvoiceParser()
+
 
 def register_session_invoice(session_id: str, invoice_path: str, filename: str) -> None:
     entries = _SESSION_INVOICES.setdefault(session_id, [])
     if not any(entry["path"] == invoice_path for entry in entries):
         entries.append({"path": invoice_path, "filename": filename, "resolved": False})
+
+
+def ingest_and_register(session_id: str, file_path: str, filename: str) -> dict:
+    """
+    Ingests one file into a session, shared by every entry point that
+    adds documents (manual chat upload, ServiceNow attachment pull).
+    Detects invoices via InvoiceParser first -- the generic doc-id
+    extractor only recognizes "Document ID"/"Contract ID"/"Article ID"
+    labels, not "Invoice ID", so left alone it would mistag an invoice
+    as a contract under the real contract's own ID (an invoice's text
+    references that ID too). Registers detected invoices for later
+    re-validation. Returns the ingest_session_file() result dict.
+    """
+    parsed_invoice = _invoice_parser.parse(file_path)
+    invoice_id = parsed_invoice.get("invoice_id")
+
+    result = ingest_session_file(
+        session_id,
+        file_path,
+        filename,
+        doc_type="invoice" if invoice_id else None,
+        doc_id=invoice_id,
+    )
+
+    if invoice_id:
+        register_session_invoice(session_id, file_path, filename)
+
+    return result
 
 
 def get_session_invoices(session_id: str) -> list[dict]:

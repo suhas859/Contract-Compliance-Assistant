@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from backend.api.chat_api import router as chat_router
 from backend.api.ingestion_api import router as ingestion_router
+from backend.api.servicenow_api import router as servicenow_router
 
 app = FastAPI(
     title="Contract Compliance Assistant API",
@@ -16,6 +17,11 @@ app.include_router(
 app.include_router(
     chat_router,
     tags=["Chat"]
+)
+
+app.include_router(
+    servicenow_router,
+    tags=["ServiceNow"]
 )
 
 

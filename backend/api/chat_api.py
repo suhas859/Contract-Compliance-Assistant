@@ -5,15 +5,20 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from backend.chat.chat_store import SQLiteChatMessageHistory, get_session_messages, list_sessions
 from backend.chat.qa_engine import PolicyQAEngine
-from backend.chat.session_documents import ingest_session_file, session_collection_name
+from backend.chat.session_documents import session_collection_name
 from backend.chat.session_invoice_validation import (
     get_session_invoices,
-    register_session_invoice,
+    ingest_and_register,
     resolve_session_invoices,
+)
+from backend.chat.validation_presentation import (
+    attach_recommendations,
+    is_validate_intent,
+    related_incidents_for_session,
+    summarize_validations,
 )
 from backend.llm.llm_provider import OllamaLLM, OpenAILLM
 from backend.retrieval.retriever import Retriever
-from backend.validation.invoice_parser import InvoiceParser
 
 router = APIRouter()
 
@@ -24,109 +29,6 @@ QA_ENGINES = {
     "openai": PolicyQAEngine(OpenAILLM()),
 }
 DEFAULT_PROVIDER = "ollama"
-
-invoice_parser = InvoiceParser()
-
-
-STATUS_ICONS = {
-    "Compliant": "✓",
-    "Partially Compliant": "⚠",
-    "Non-Compliant": "✗",
-}
-
-FINDING_ICONS = {
-    "Pass": "✓",
-    "Warning": "⚠",
-    "Fail": "✗",
-}
-
-RECOMMENDATIONS = {
-    "supplier_match": "Verify the supplier details and use the supplier named in the approved contract.",
-    "tax_id_match": "Verify the tax ID and use the tax ID recorded in the approved contract.",
-    "contract_period": "Confirm the invoice date or obtain a valid contract extension or amendment.",
-    "payment_amount": "Revise the invoice or obtain an approved contract amendment.",
-    "payment_terms": "Correct the due date to match the applicable payment terms.",
-    "contract_lookup": "Add the correct Contract ID and ensure the approved contract is available.",
-}
-
-
-def categories_needing_recommendation(findings: list[dict]) -> set[str]:
-    return {
-        finding.get("category")
-        for finding in findings
-        if finding.get("status") in {"Warning", "Fail"}
-    }
-
-
-def format_validation(validation: dict) -> str:
-    """Render one validation report in the human-readable chat format."""
-    if "error" in validation:
-        return f"Compliance Status:\n⚠ Unable to Validate\n\nRecommendations\n- {validation['error']}"
-
-    status = validation.get("status", "Partially Compliant")
-    findings = validation.get("findings", [])
-    lines = [
-        "Compliance Status:",
-        f"{STATUS_ICONS.get(status, '⚠')} {status}",
-        "",
-        "Findings",
-    ]
-
-    for finding in findings:
-        icon = FINDING_ICONS.get(finding.get("status"), "⚠")
-        description = finding.get("description", "No details available.")
-        citation = finding.get("citation")
-        suffix = f" ({citation})" if citation else ""
-        lines.append(f"{icon} {description}{suffix}")
-
-    lines.extend(["", "Related ServiceNow Incidents"])
-    incidents = validation.get("related_incidents", [])
-    if incidents:
-        lines.extend(f"- {incident}" for incident in incidents)
-    else:
-        lines.append("- No related incidents available (ServiceNow integration is not configured).")
-
-    lines.extend(["", "Recommendations"])
-    categories = categories_needing_recommendation(findings)
-    recommendations = [
-        recommendation
-        for category, recommendation in RECOMMENDATIONS.items()
-        if category in categories
-    ]
-    if recommendations:
-        lines.extend(f"- {recommendation}" for recommendation in recommendations)
-    else:
-        lines.append("- No corrective action is required.")
-
-    return "\n".join(lines)
-
-
-def summarize_validations(validations: list[dict]) -> str:
-    return "\n\n".join(format_validation(validation) for validation in validations)
-
-
-def attach_recommendations(validation: dict) -> dict:
-    if "error" in validation:
-        return validation
-
-    categories = categories_needing_recommendation(validation.get("findings", []))
-    validation["recommendations"] = [
-        recommendation
-        for category, recommendation in RECOMMENDATIONS.items()
-        if category in categories
-    ]
-    validation["related_incidents"] = []
-    return validation
-
-
-def is_validate_intent(message: str) -> bool:
-    """
-    Lightweight, deterministic check for "please validate this" style
-    requests -- e.g. "validate the invoice", "is this valid?". Simple on
-    purpose: catches the common phrasing without an extra LLM call just
-    to classify intent.
-    """
-    return "valid" in message.lower()
 
 
 @router.get("/chat/sessions")
@@ -172,49 +74,38 @@ async def chat(
     invoice_files = []
 
     for file_path, safe_name in saved_files:
-        # Detect invoices via InvoiceParser first -- an invoice's text
-        # contains both its own Invoice ID and a *reference* to a
-        # different document's Contract ID, and the generic doc-ID
-        # detection used for policies/contracts doesn't know about
-        # "Invoice ID" at all. Left to auto-detect, an invoice would get
-        # mistagged as a contract, under the real contract's own ID.
-        parsed_invoice = invoice_parser.parse(file_path)
-        invoice_id = parsed_invoice.get("invoice_id")
-
-        ingest_result = ingest_session_file(
-            session_id,
-            file_path,
-            safe_name,
-            doc_type="invoice" if invoice_id else None,
-            doc_id=invoice_id,
-        )
+        ingest_result = ingest_and_register(session_id, file_path, safe_name)
         upload_notes.append(
             f"Uploaded and indexed {safe_name} as a{'n' if ingest_result['doc_type'] == 'invoice' else ''} "
             f"{ingest_result['doc_type']} ({ingest_result['chunk_count']} chunks)."
         )
 
-        if invoice_id:
+        if ingest_result["doc_type"] == "invoice":
             invoice_files.append((file_path, safe_name))
-            register_session_invoice(session_id, file_path, safe_name)
+
+    related_incidents = related_incidents_for_session(session_id)
 
     if invoice_files:
         # Freshly uploaded invoice(s) this request -- validate immediately
         # so there's always feedback right away.
         validations = [
-            attach_recommendations(v) for v in resolve_session_invoices(session_id, force=True)
+            attach_recommendations(v, related_incidents)
+            for v in resolve_session_invoices(session_id, force=True)
         ]
     elif message.strip() and is_validate_intent(message) and get_session_invoices(session_id):
         # No new invoice this request, but the user is explicitly asking
         # to validate one uploaded earlier in this chat.
         validations = [
-            attach_recommendations(v) for v in resolve_session_invoices(session_id, force=True)
+            attach_recommendations(v, related_incidents)
+            for v in resolve_session_invoices(session_id, force=True)
         ]
     else:
         # Routine message/upload -- silently pick up anything that
         # couldn't be resolved before (e.g. its policy just arrived),
         # without repeating an old result on an unrelated message.
         validations = [
-            attach_recommendations(v) for v in resolve_session_invoices(session_id)
+            attach_recommendations(v, related_incidents)
+            for v in resolve_session_invoices(session_id)
         ]
 
     upload_note = "\n".join(upload_notes) or None
