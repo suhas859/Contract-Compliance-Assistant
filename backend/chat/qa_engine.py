@@ -41,13 +41,29 @@ class PolicyQAEngine:
         self.llm = llm
         self.top_k = top_k
 
-    def answer(self, retriever: Retriever, question: str, history: list[dict] | None = None) -> dict:
-
+    def _retrieve(self, retriever: Retriever, question: str) -> list:
         chunks = retriever.retrieve(
             question,
             top_k=self.top_k,
             doc_type_filter=["policy", "contract", "invoice"],
         )
+
+        # QA only (validation deliberately stays session-only, see
+        # PolicyRules.has_policy()): if this session has no policy of
+        # its own, supplement with the permanent knowledge base's
+        # policies so a general policy question is still answerable
+        # instead of just saying nothing was uploaded.
+        if not retriever.get_by_doc_type("policy"):
+            kb_retriever = Retriever(collection_name="knowledge_base")
+            chunks = chunks + kb_retriever.retrieve(
+                question, top_k=self.top_k, doc_type_filter=["policy"]
+            )
+
+        return chunks
+
+    def answer(self, retriever: Retriever, question: str, history: list[dict] | None = None) -> dict:
+
+        chunks = self._retrieve(retriever, question)
 
         if not chunks:
             return {
@@ -79,11 +95,7 @@ class PolicyQAEngine:
     def answer_stream(
         self, retriever: Retriever, question: str, history: list[dict] | None = None
     ) -> tuple[Iterator[str], list[str]]:
-        chunks = retriever.retrieve(
-            question,
-            top_k=self.top_k,
-            doc_type_filter=["policy", "contract", "invoice"],
-        )
+        chunks = self._retrieve(retriever, question)
         if not chunks:
             message = (
                 "I don't have any uploaded policy, contract, or invoice "

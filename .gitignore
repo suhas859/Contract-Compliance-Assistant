@@ -1,8 +1,13 @@
 /chroma_db
 /data/uploads
-backend/data
+backend/history
 backend/venv
 __pycache__/
 *.py[cod]
 backend/.env
+
+# web-ui
+web-ui/uploads/*
+node_modules/
+web-ui/.env
 

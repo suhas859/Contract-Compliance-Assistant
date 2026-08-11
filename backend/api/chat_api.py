@@ -5,9 +5,15 @@ from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 
-from backend.chat.chat_store import SQLiteChatMessageHistory, get_session_messages, list_sessions
+from backend.chat.chat_store import (
+    SQLiteChatMessageHistory,
+    get_session_messages,
+    list_sessions,
+    set_session_title,
+)
 from backend.chat.qa_engine import PolicyQAEngine
 from backend.chat.session_documents import session_collection_name
+from backend.chat.session_title import generate_title
 from backend.chat.session_invoice_validation import (
     get_session_invoices,
     ingest_and_register,
@@ -53,6 +59,7 @@ async def chat(
 ):
     qa_engine = QA_ENGINES.get(provider, QA_ENGINES[DEFAULT_PROVIDER])
     history_store = SQLiteChatMessageHistory(session_id)
+    is_new_session = not history_store.messages
 
     upload_notes = []
     validations = []
@@ -80,7 +87,7 @@ async def chat(
         ingest_result = ingest_and_register(session_id, file_path, safe_name)
         upload_notes.append(
             f"Uploaded and indexed {safe_name} as a{'n' if ingest_result['doc_type'] == 'invoice' else ''} "
-            f"{ingest_result['doc_type']} ({ingest_result['chunk_count']} chunks)."
+            f"{ingest_result['doc_type']}."
         )
 
         if ingest_result["doc_type"] == "invoice":
@@ -92,14 +99,14 @@ async def chat(
         # Freshly uploaded invoice(s) this request -- validate immediately
         # so there's always feedback right away.
         validations = [
-            attach_recommendations(v, related_incidents)
+            attach_recommendations(v, related_incidents, qa_engine.llm)
             for v in resolve_session_invoices(session_id, force=True)
         ]
     elif message.strip() and is_validate_intent(message) and get_session_invoices(session_id):
         # No new invoice this request, but the user is explicitly asking
         # to validate one uploaded earlier in this chat.
         validations = [
-            attach_recommendations(v, related_incidents)
+            attach_recommendations(v, related_incidents, qa_engine.llm)
             for v in resolve_session_invoices(session_id, force=True)
         ]
     else:
@@ -107,7 +114,7 @@ async def chat(
         # couldn't be resolved before (e.g. its policy just arrived),
         # without repeating an old result on an unrelated message.
         validations = [
-            attach_recommendations(v, related_incidents)
+            attach_recommendations(v, related_incidents, qa_engine.llm)
             for v in resolve_session_invoices(session_id)
         ]
 
@@ -176,6 +183,10 @@ async def chat(
                             },
                         ),
                     ])
+                    if is_new_session and message.strip():
+                        title = generate_title(qa_engine.llm, message)
+                        if title:
+                            set_session_title(session_id, title)
                     yield json.dumps(
                         {"type": "done", "sequence": sequence, "citations": citations}
                     ) + "\n"
@@ -214,5 +225,10 @@ async def chat(
             ),
         ]
     )
+
+    if is_new_session and message.strip():
+        title = generate_title(qa_engine.llm, message)
+        if title:
+            set_session_title(session_id, title)
 
     return result

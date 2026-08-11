@@ -6,7 +6,7 @@ from pathlib import Path
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import BaseMessage, HumanMessage, message_to_dict, messages_from_dict
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "chat_history.db"
+DB_PATH = Path(__file__).resolve().parent.parent / "history" / "chat_history.db"
 
 
 def _connect() -> sqlite3.Connection:
@@ -23,7 +23,39 @@ def _connect() -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS session_titles (
+            session_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL
+        )
+        """
+    )
     return conn
+
+
+def get_session_title(session_id: str) -> str | None:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT title FROM session_titles WHERE session_id = ?", (session_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else None
+
+
+def set_session_title(session_id: str, title: str) -> None:
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO session_titles (session_id, title) VALUES (?, ?) "
+            "ON CONFLICT(session_id) DO UPDATE SET title = excluded.title",
+            (session_id, title),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 class SQLiteChatMessageHistory(BaseChatMessageHistory):
@@ -114,11 +146,14 @@ def list_sessions() -> list[dict]:
 
     sessions = []
     for session_id, updated_at in rows:
-        messages = SQLiteChatMessageHistory(session_id).messages
+        stored_title = get_session_title(session_id)
+        title = stored_title or _title_from_messages(
+            SQLiteChatMessageHistory(session_id).messages
+        )
         sessions.append(
             {
                 "id": session_id,
-                "title": _title_from_messages(messages),
+                "title": title,
                 "updated_at": updated_at,
             }
         )

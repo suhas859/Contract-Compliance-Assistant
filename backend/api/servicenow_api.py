@@ -6,21 +6,28 @@ from fastapi import APIRouter, Header, HTTPException
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
-from backend.chat.chat_store import SQLiteChatMessageHistory
+from backend.chat.chat_store import SQLiteChatMessageHistory, set_session_title
 from backend.chat.servicenow_attachments import fetch_incident_attachments
 from backend.chat.session_invoice_validation import (
     get_session_invoices,
     ingest_and_register,
     resolve_session_invoices,
 )
+from backend.chat.session_title import generate_title
 from backend.chat.validation_presentation import (
     attach_recommendations,
     is_validate_intent,
     summarize_validations,
 )
+from backend.llm.llm_provider import OllamaLLM
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# ServiceNow-triggered validations have no per-request provider choice
+# (there's no UI involved) -- default to the same provider the rest of
+# the app defaults to.
+_default_llm = OllamaLLM()
 
 
 class ServiceNowIncident(BaseModel):
@@ -59,6 +66,7 @@ async def servicenow_webhook(
         raise HTTPException(status_code=401, detail="Invalid or missing webhook secret.")
 
     session_id = session_id_for_incident(incident.number)
+    is_new_session = not SQLiteChatMessageHistory(session_id).messages
 
     # Pull in whatever's already attached to the incident (contract,
     # invoice, etc.) through the same path a manual chat upload uses --
@@ -110,6 +118,11 @@ async def servicenow_webhook(
         ]
     )
 
+    if is_new_session:
+        title = generate_title(_default_llm, incident_text)
+        if title:
+            set_session_title(session_id, title)
+
     # Same auto-validate rule as the chat endpoint: a freshly-ingested
     # invoice always gets checked immediately, or an invoice from
     # earlier gets (re-)checked if the incident text itself reads like
@@ -118,7 +131,7 @@ async def servicenow_webhook(
     validations = []
     if new_invoice or (is_validate_intent(incident_text) and get_session_invoices(session_id)):
         validations = [
-            attach_recommendations(v, [incident.number])
+            attach_recommendations(v, [incident.number], _default_llm)
             for v in resolve_session_invoices(session_id, force=True)
         ]
 

@@ -57,12 +57,18 @@ def format_validation(validation: dict) -> str:
         lines.append("- No related incidents available (ServiceNow integration is not configured).")
 
     lines.extend(["", "Recommendations"])
-    categories = categories_needing_recommendation(findings)
-    recommendations = [
-        recommendation
-        for category, recommendation in RECOMMENDATIONS.items()
-        if category in categories
-    ]
+    # Use whatever attach_recommendations() already computed (LLM-generated
+    # or static) if this validation went through it -- only fall back to
+    # recomputing from the static dict for a dict that never did (e.g. a
+    # raw validation report passed in directly).
+    recommendations = validation.get("recommendations")
+    if recommendations is None:
+        categories = categories_needing_recommendation(findings)
+        recommendations = [
+            recommendation
+            for category, recommendation in RECOMMENDATIONS.items()
+            if category in categories
+        ]
     if recommendations:
         lines.extend(f"- {recommendation}" for recommendation in recommendations)
     else:
@@ -75,16 +81,22 @@ def summarize_validations(validations: list[dict]) -> str:
     return "\n\n".join(format_validation(validation) for validation in validations)
 
 
-def attach_recommendations(validation: dict, related_incidents: list[str] | None = None) -> dict:
+def attach_recommendations(validation: dict, related_incidents: list[str] | None = None, llm=None) -> dict:
     if "error" in validation:
         return validation
 
-    categories = categories_needing_recommendation(validation.get("findings", []))
-    validation["recommendations"] = [
-        recommendation
-        for category, recommendation in RECOMMENDATIONS.items()
-        if category in categories
-    ]
+    if llm is not None:
+        from backend.validation.recommendation_engine import generate_recommendations
+
+        validation["recommendations"] = generate_recommendations(llm, validation)
+    else:
+        categories = categories_needing_recommendation(validation.get("findings", []))
+        validation["recommendations"] = [
+            recommendation
+            for category, recommendation in RECOMMENDATIONS.items()
+            if category in categories
+        ]
+
     validation["related_incidents"] = related_incidents or []
     return validation
 
