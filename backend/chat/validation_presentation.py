@@ -54,7 +54,7 @@ def format_validation(validation: dict) -> str:
     if incidents:
         lines.extend(f"- {incident}" for incident in incidents)
     else:
-        lines.append("- No related incidents available (ServiceNow integration is not configured).")
+        lines.append("- No related incidents.")
 
     lines.extend(["", "Recommendations"])
     # Use whatever attach_recommendations() already computed (LLM-generated

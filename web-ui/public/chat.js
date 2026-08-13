@@ -341,7 +341,7 @@ function appendValidationCard(bubble, validation) {
     card,
     "Related ServiceNow Incidents",
     validation.related_incidents,
-    "No related incidents available (ServiceNow integration is not configured)."
+    "No related incidents."
   );
   appendListSection(
     card,
